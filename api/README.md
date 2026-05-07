@@ -1,24 +1,19 @@
-# README
+# API
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+Rails API for IAE management MVP.
 
-Things you may want to cover:
+## Database (Ridgepole)
 
-* Ruby version
+Schema is defined in `api/Schemafile`.
 
-* System dependencies
+Apply schema:
 
-* Configuration
+```bash
+bundle exec ridgepole -c config/database.yml -E development --apply -f Schemafile
+```
 
-* Database creation
+Export current DB schema back to Schemafile:
 
-* Database initialization
-
-* How to run the test suite
-
-* Services (job queues, cache servers, search engines, etc.)
-
-* Deployment instructions
-
-* ...
+```bash
+bundle exec ridgepole -c config/database.yml -E development --export -f Schemafile
+```
