@@ -1,0 +1,110 @@
+create_table "major_categories", force: :cascade do |t|
+  t.integer "kind", null: false, default: 0
+  t.string "name", limit: 100, null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["kind", "name"], name: "index_major_categories_on_kind_and_name", unique: true
+end
+
+create_table "minor_categories", force: :cascade do |t|
+  t.bigint "major_category_id", null: false
+  t.string "name", limit: 100, null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["major_category_id", "name"], name: "index_minor_categories_on_major_category_id_and_name", unique: true
+  t.index ["major_category_id"], name: "index_minor_categories_on_major_category_id"
+end
+
+create_table "payment_methods", force: :cascade do |t|
+  t.string "name", limit: 100, null: false
+  t.string "method_type", limit: 20, null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["name"], name: "index_payment_methods_on_name", unique: true
+end
+
+create_table "expenses", force: :cascade do |t|
+  t.bigint "minor_category_id", null: false
+  t.bigint "payment_method_id", null: false
+  t.integer "expense_type", null: false, default: 0
+  t.date "start_month", null: false
+  t.date "end_month"
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["expense_type"], name: "index_expenses_on_expense_type"
+  t.index ["minor_category_id"], name: "index_expenses_on_minor_category_id"
+  t.index ["start_month"], name: "index_expenses_on_start_month"
+  t.index ["end_month"], name: "index_expenses_on_end_month"
+  t.index ["payment_method_id"], name: "index_expenses_on_payment_method_id"
+end
+
+create_table "incomes", force: :cascade do |t|
+  t.bigint "minor_category_id", null: false
+  t.date "start_month", null: false
+  t.integer "income_type", null: false, default: 0
+  t.date "end_month"
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["income_type"], name: "index_incomes_on_income_type"
+  t.index ["minor_category_id"], name: "index_incomes_on_minor_category_id"
+  t.index ["start_month"], name: "index_incomes_on_start_month"
+  t.index ["end_month"], name: "index_incomes_on_end_month"
+end
+
+create_table "forecasts", force: :cascade do |t|
+  t.integer "kind", null: false, default: 0
+  t.date "month", null: false
+  t.decimal "amount", precision: 15, scale: 0, null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["month", "kind"], name: "index_forecasts_on_month_and_kind", unique: true
+end
+
+create_table "transactions", force: :cascade do |t|
+  t.date "month", null: false
+  t.decimal "amount", precision: 15, scale: 0, null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["month"], name: "index_transactions_on_month"
+end
+
+create_table "expense_transactions", force: :cascade do |t|
+  t.bigint "expense_id", null: false
+  t.bigint "transaction_id", null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["expense_id"], name: "index_expense_transactions_on_expense_id"
+  t.index ["transaction_id"], name: "index_expense_transactions_on_transaction_id", unique: true
+end
+
+create_table "income_transactions", force: :cascade do |t|
+  t.bigint "income_id", null: false
+  t.bigint "transaction_id", null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["income_id"], name: "index_income_transactions_on_income_id"
+  t.index ["transaction_id"], name: "index_income_transactions_on_transaction_id", unique: true
+end
+
+create_table "monthly_balances", force: :cascade do |t|
+  t.date "month", null: false
+  t.decimal "amount", precision: 15, scale: 0, null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index ["month"], name: "index_monthly_balances_on_month", unique: true
+end
+
+add_foreign_key "expenses", "payment_methods"
+add_foreign_key "minor_categories", "major_categories"
+add_foreign_key "expenses", "minor_categories"
+add_foreign_key "incomes", "minor_categories"
+add_foreign_key "expense_transactions", "expenses"
+add_foreign_key "expense_transactions", "transactions"
+add_foreign_key "income_transactions", "incomes"
+add_foreign_key "income_transactions", "transactions"
+
+add_check_constraint "major_categories", "kind IN (0, 1)", name: "major_categories_kind_check"
+add_check_constraint "expenses", "expense_type IN (0, 1)", name: "expenses_expense_type_check"
+add_check_constraint "incomes", "income_type IN (0, 1)", name: "incomes_income_type_check"
+add_check_constraint "payment_methods", "method_type IN ('card', 'bank_debit')", name: "payment_methods_method_type_check"
+add_check_constraint "forecasts", "kind IN (0, 1)", name: "forecasts_kind_check"
