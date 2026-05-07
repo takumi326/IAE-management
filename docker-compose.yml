@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: iae_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: iae_management_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d iae_management_development"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: iae_api
+    working_dir: /app/api
+    command: bash -lc "bundle install && rm -f tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0 -p 3000"
+    environment:
+      RAILS_ENV: development
+      BUNDLE_PATH: /usr/local/bundle
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/iae_management_development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app
+      - bundle_data:/usr/local/bundle
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: iae_web
+    working_dir: /app/web
+    command: sh -lc "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://localhost:3000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/app
+      - web_node_modules:/app/web/node_modules
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  bundle_data:
+  web_node_modules:
