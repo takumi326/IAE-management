@@ -1,27 +1,23 @@
 import { NavLink, Route, Routes } from "react-router-dom"
-import { CategoriesPage } from "./pages/CategoriesPage.tsx"
 import { DashboardPage } from "./pages/DashboardPage.tsx"
-import { ExpenseMastersPage } from "./pages/ExpenseMastersPage.tsx"
-import { ForecastsPage } from "./pages/ForecastsPage.tsx"
-import { IncomeMastersPage } from "./pages/IncomeMastersPage.tsx"
-import { PaymentMethodsPage } from "./pages/PaymentMethodsPage.tsx"
-import { TransactionsPage } from "./pages/TransactionsPage.tsx"
+import { ImportPage } from "./pages/ImportPage.tsx"
+import { MastersPage } from "./pages/MastersPage.tsx"
+import { SettingsPage } from "./pages/SettingsPage.tsx"
 
 const navItems = [
   { to: "/", label: "ダッシュボード" },
-  { to: "/forecasts", label: "予測管理" },
-  { to: "/transactions", label: "実績管理" },
-  { to: "/masters/expenses", label: "支出マスタ" },
-  { to: "/masters/incomes", label: "収入マスタ" },
-  { to: "/masters/categories", label: "カテゴリ管理" },
-  { to: "/masters/payment-methods", label: "支払方法管理" },
+  { to: "/masters", label: "マスタ設定" },
+  { to: "/import", label: "インポート" },
+  { to: "/settings", label: "設定" },
 ]
 
 export default function App() {
   return (
     <div className="mx-auto min-h-screen w-full max-w-7xl p-4 text-slate-800 sm:p-6">
-      <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
         <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h1 className="mb-1 text-lg font-bold">IAE Management</h1>
+          <p className="mb-4 text-xs text-slate-500">収支管理ダッシュボード</p>
           <nav className="space-y-1">
             {navItems.map((item) => (
               <NavLink
@@ -43,12 +39,9 @@ export default function App() {
         <section>
           <Routes>
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/forecasts" element={<ForecastsPage />} />
-            <Route path="/transactions" element={<TransactionsPage />} />
-            <Route path="/masters/expenses" element={<ExpenseMastersPage />} />
-            <Route path="/masters/incomes" element={<IncomeMastersPage />} />
-            <Route path="/masters/categories" element={<CategoriesPage />} />
-            <Route path="/masters/payment-methods" element={<PaymentMethodsPage />} />
+            <Route path="/masters" element={<MastersPage />} />
+            <Route path="/import" element={<ImportPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </section>
       </div>
