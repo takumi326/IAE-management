@@ -1,7 +1,7 @@
 module Api
   class ExpensesController < ApplicationController
-    before_action :set_expense, only: [:update, :destroy]
-    before_action :ensure_expense!, only: [:update, :destroy]
+    before_action :set_expense, only: [ :update, :destroy ]
+    before_action :ensure_expense!, only: [ :update, :destroy ]
 
     def index
       expenses = Expense.preload(:minor_category, :payment_method).order(:id)
@@ -48,11 +48,11 @@ module Api
     end
 
     def expense_params
-      params.expect(expense: [:minor_category_id, :payment_method_id, :expense_type, :start_month, :end_month])
+      params.expect(expense: [ :minor_category_id, :payment_method_id, :expense_type, :start_month, :end_month ])
     end
 
     def expense_json(expense)
-      expense.as_json(only: [:id, :minor_category_id, :payment_method_id, :expense_type, :start_month, :end_month])
+      expense.as_json(only: [ :id, :minor_category_id, :payment_method_id, :expense_type, :start_month, :end_month ])
     end
   end
 end
