@@ -1,0 +1,46 @@
+ja:
+  hello: "こんにちは"
+
+  enums:
+    major_category:
+      kind:
+        expense: "支出"
+        income: "収入"
+    forecast:
+      kind:
+        expense: "支出"
+        income: "収入"
+    expense:
+      expense_type:
+        one_time: "単発"
+        recurring: "定期"
+    income:
+      income_type:
+        one_time: "単発"
+        recurring: "定期"
+
+  activerecord:
+    models:
+      major_category: "大カテゴリ"
+      minor_category: "小カテゴリ"
+      expense: "支出"
+      income: "収入"
+      forecast: "予測"
+      transaction: "取引"
+      payment_method: "支払方法"
+      monthly_balance: "月末残高"
+    attributes:
+      major_category:
+        kind: "種別"
+        name: "名前"
+      minor_category:
+        major_category: "大カテゴリ"
+        name: "名前"
+      expense:
+        expense_type: "支出タイプ"
+        start_month: "開始月"
+        end_month: "終了月"
+      income:
+        income_type: "収入タイプ"
+        start_month: "開始月"
+        end_month: "終了月"
