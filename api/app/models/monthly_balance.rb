@@ -1,0 +1,2 @@
+class MonthlyBalance < ApplicationRecord
+end
