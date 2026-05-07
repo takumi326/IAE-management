@@ -8,9 +8,9 @@ Rails.application.routes.draw do
   namespace :api do
     get "categories/majors", to: "categories#majors"
     get "categories/minors", to: "categories#minors"
-    resources :expenses, only: [:index, :create, :update, :destroy]
-    resources :incomes, only: [:index, :create, :update, :destroy]
-    resources :forecasts, only: [:index, :create, :update, :destroy]
+    resources :expenses, only: [ :index, :create, :update, :destroy ]
+    resources :incomes, only: [ :index, :create, :update, :destroy ]
+    resources :forecasts, only: [ :index, :create, :update, :destroy ]
   end
 
   # Defines the root path route ("/")

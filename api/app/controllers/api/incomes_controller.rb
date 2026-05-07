@@ -1,7 +1,7 @@
 module Api
   class IncomesController < ApplicationController
-    before_action :set_income, only: [:update, :destroy]
-    before_action :ensure_income!, only: [:update, :destroy]
+    before_action :set_income, only: [ :update, :destroy ]
+    before_action :ensure_income!, only: [ :update, :destroy ]
 
     def index
       incomes = Income.preload(:minor_category).order(:id)
@@ -48,11 +48,11 @@ module Api
     end
 
     def income_params
-      params.expect(income: [:minor_category_id, :income_type, :start_month, :end_month])
+      params.expect(income: [ :minor_category_id, :income_type, :start_month, :end_month ])
     end
 
     def income_json(income)
-      income.as_json(only: [:id, :minor_category_id, :income_type, :start_month, :end_month])
+      income.as_json(only: [ :id, :minor_category_id, :income_type, :start_month, :end_month ])
     end
   end
 end

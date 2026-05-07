@@ -1,7 +1,7 @@
 module Api
   class ForecastsController < ApplicationController
-    before_action :set_forecast, only: [:update, :destroy]
-    before_action :ensure_forecast!, only: [:update, :destroy]
+    before_action :set_forecast, only: [ :update, :destroy ]
+    before_action :ensure_forecast!, only: [ :update, :destroy ]
 
     def index
       forecasts = Forecast.order(:month, :kind, :id)
@@ -48,11 +48,11 @@ module Api
     end
 
     def forecast_params
-      params.expect(forecast: [:kind, :month, :amount])
+      params.expect(forecast: [ :kind, :month, :amount ])
     end
 
     def forecast_json(forecast)
-      forecast.as_json(only: [:id, :kind, :month, :amount])
+      forecast.as_json(only: [ :id, :kind, :month, :amount ])
     end
   end
 end
