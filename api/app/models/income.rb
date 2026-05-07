@@ -4,5 +4,5 @@ class Income < ApplicationRecord
   belongs_to :minor_category
 
   has_many :income_transactions, dependent: :destroy
-  has_many :transactions, through: :income_transactions
+  has_many :transactions, through: :income_transactions, source: :ledger_transaction
 end
