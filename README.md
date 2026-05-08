@@ -43,7 +43,7 @@ docker compose run --rm api bash -lc "cd /app/api && bundle exec ridgepole -c co
 
 - 認証は Supabase Auth (Google provider) を利用します。
 - Web は Supabase で取得した access token を `Authorization: Bearer ...` として API に送信します。
-- API は `SUPABASE_JWT_SECRET` で JWT を検証し、`ALLOWED_EMAILS` が設定されている場合は allowlist チェックを行います。
+- API は Supabase の JWKS（公開鍵）で JWT を検証し、`ALLOWED_EMAILS` が設定されている場合は allowlist チェックを行います。
 - ローカル開発では `development` 環境のため API 側認証をスキップします（開発速度優先）。
 
 必要な環境変数:
@@ -54,7 +54,7 @@ VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
 
 # API
-SUPABASE_JWT_SECRET=<supabase-jwt-secret>
+SUPABASE_URL=https://<project-ref>.supabase.co
 ALLOWED_EMAILS=foo@example.com,bar@example.com
 ```
 
@@ -68,4 +68,4 @@ ALLOWED_EMAILS=foo@example.com,bar@example.com
   - `DEPLOY_SSH_KEY`
   - `DEPLOY_PORT` (任意)
   - `DEPLOY_APP_DIR` (サーバー上で `docker compose` を実行するディレクトリ)
-- API 本番では `ALLOWED_HOSTS` / `CORS_ORIGINS`（カンマ区切り）と `SUPABASE_JWT_SECRET` / `ALLOWED_EMAILS` を設定してください。
+- API 本番では `ALLOWED_HOSTS` / `CORS_ORIGINS`（カンマ区切り）と `SUPABASE_URL` / `ALLOWED_EMAILS` を設定してください。

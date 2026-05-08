@@ -1,3 +1,7 @@
+require "json"
+require "net/http"
+require "uri"
+
 class ApplicationController < ActionController::API
   before_action :authenticate_request!
 
@@ -26,13 +30,16 @@ class ApplicationController < ActionController::API
 
   def decode_supabase_jwt(token)
     return {} if token.blank?
+    return {} if supabase_url.blank?
 
-    secret = ENV.fetch("SUPABASE_JWT_SECRET", "")
-    return {} if secret.blank?
-
-    decoded, = JWT.decode(token, secret, true, { algorithm: "HS256" })
+    decoded, = JWT.decode(token, nil, true, {
+      algorithms: %w[RS256 ES256],
+      jwks: ->(_options) { supabase_jwks },
+      verify_iss: true,
+      iss: "#{supabase_url}/auth/v1"
+    })
     decoded.is_a?(Hash) ? decoded : {}
-  rescue JWT::DecodeError
+  rescue JWT::DecodeError, JWT::JWKError, JSON::ParserError, OpenSSL::SSL::SSLError, SocketError
     {}
   end
 
@@ -42,5 +49,26 @@ class ApplicationController < ActionController::API
 
     allowed = raw.split(",").map(&:strip).reject(&:blank?)
     allowed.include?(email)
+  end
+
+  def supabase_url
+    ENV.fetch("SUPABASE_URL", "").delete_suffix("/")
+  end
+
+  def supabase_jwks
+    cached = self.class.instance_variable_get(:@supabase_jwks_cache)
+    now = Time.now.to_i
+    return cached[:set] if cached && cached[:expires_at] > now
+
+    jwks_url = ENV.fetch("SUPABASE_JWKS_URL", "#{supabase_url}/auth/v1/.well-known/jwks.json")
+    response = Net::HTTP.get_response(URI.parse(jwks_url))
+    return JWT::JWK::Set.new({ keys: [] }) unless response.is_a?(Net::HTTPSuccess)
+
+    parsed = JSON.parse(response.body)
+    set = JWT::JWK::Set.new(parsed)
+    self.class.instance_variable_set(:@supabase_jwks_cache, { set: set, expires_at: now + 300 })
+    set
+  rescue StandardError
+    JWT::JWK::Set.new({ keys: [] })
   end
 end
