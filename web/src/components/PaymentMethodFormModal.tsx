@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { api, type PaymentMethodType } from "../lib/api.ts"
+import { api, type PaymentMethod, type PaymentMethodType } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
 import { formatPaymentMethodTypeLabel } from "../lib/labels.ts"
 import { FieldLabel, FormActions, FormError, Modal } from "./Modal.tsx"
@@ -8,18 +8,19 @@ const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => i + 1)
 
 type Props = {
   onClose: () => void
-  onCreated: () => void
+  onSaved: () => void
+  initial?: PaymentMethod
 }
 
 function daySelectValue(day: number | null): string {
   return day == null ? "" : String(day)
 }
 
-export function PaymentMethodFormModal({ onClose, onCreated }: Props) {
-  const [name, setName] = useState("")
-  const [methodType, setMethodType] = useState<PaymentMethodType>("card")
-  const [closingDay, setClosingDay] = useState<number | null>(null)
-  const [debitDay, setDebitDay] = useState<number | null>(27)
+export function PaymentMethodFormModal({ onClose, onSaved, initial }: Props) {
+  const [name, setName] = useState(initial?.name ?? "")
+  const [methodType, setMethodType] = useState<PaymentMethodType>(initial?.method_type ?? "card")
+  const [closingDay, setClosingDay] = useState<number | null>(initial?.closing_day ?? null)
+  const [debitDay, setDebitDay] = useState<number | null>(initial?.debit_day ?? 27)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -28,13 +29,18 @@ export function PaymentMethodFormModal({ onClose, onCreated }: Props) {
     setSubmitting(true)
     setErrorMessage(null)
     try {
-      await api.createPaymentMethod({
+      const payload = {
         name: name.trim(),
         method_type: methodType,
         closing_day: methodType === "card" ? closingDay : null,
         debit_day: debitDay,
-      })
-      onCreated()
+      }
+      if (initial) {
+        await api.updatePaymentMethod(initial.id, payload)
+      } else {
+        await api.createPaymentMethod(payload)
+      }
+      onSaved()
     } catch (err) {
       setErrorMessage(apiErrorMessage(err))
     } finally {
@@ -43,7 +49,7 @@ export function PaymentMethodFormModal({ onClose, onCreated }: Props) {
   }
 
   return (
-    <Modal title="支払方法を追加" onClose={onClose} size="md">
+    <Modal title={initial ? "支払方法を編集" : "支払方法を追加"} onClose={onClose} size="md">
       <form className="space-y-3" onSubmit={onSubmit}>
         <FormError message={errorMessage} />
         <label className="block text-sm">

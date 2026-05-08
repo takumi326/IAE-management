@@ -1,5 +1,6 @@
 export type CategoryKind = "expense" | "income"
 export type ExpenseTypeCode = "one_time" | "recurring"
+export type RecurringCycleCode = "monthly" | "yearly"
 export type IncomeTypeCode = "one_time" | "recurring"
 export type PaymentMethodType = "card" | "bank_debit" | "bank_withdrawal"
 
@@ -30,6 +31,9 @@ export type ExpenseMaster = {
   minor_category_id: number
   payment_method_id: number
   expense_type: ExpenseTypeCode
+  recurring_cycle: RecurringCycleCode
+  renewal_month: number | null
+  amount: string | number
   start_month: string
   end_month: string | null
 }
@@ -38,6 +42,7 @@ export type IncomeMaster = {
   id: number
   minor_category_id: number
   income_type: IncomeTypeCode
+  amount: string | number
   start_month: string
   end_month: string | null
 }
@@ -135,10 +140,15 @@ export type CreatePaymentMethodInput = {
   debit_day?: number | null
 }
 
+export type UpdatePaymentMethodInput = Partial<CreatePaymentMethodInput>
+
 export type ExpenseMasterInput = {
   minor_category_id: number
   payment_method_id: number
   expense_type: ExpenseTypeCode
+  recurring_cycle?: RecurringCycleCode
+  renewal_month?: number | null
+  amount: number
   start_month: string
   end_month?: string | null
 }
@@ -146,6 +156,7 @@ export type ExpenseMasterInput = {
 export type IncomeMasterInput = {
   minor_category_id: number
   income_type: IncomeTypeCode
+  amount: number
   start_month: string
   end_month?: string | null
 }
@@ -154,6 +165,44 @@ export type UpsertForecastInput = {
   kind: CategoryKind
   month: string
   amount: number
+}
+
+export type SyncActualsInput = {
+  month?: string
+}
+
+export type SyncActualsResult = {
+  month: string
+  created_expense_count: number
+  created_income_count: number
+}
+
+export type MasterActual = {
+  transaction_id: number
+  month: string
+  amount: string | number
+}
+
+export type BreakdownMode = "実" | "予"
+export type BreakdownItem = {
+  label: string
+  amount: string | number
+  mode: BreakdownMode
+}
+export type CategoryBreakdownGroup = {
+  major: string
+  mode: BreakdownMode
+  minors: BreakdownItem[]
+}
+export type DashboardSummary = {
+  month: string
+  expense_by_payment: BreakdownItem[]
+  expense_by_category_groups: CategoryBreakdownGroup[]
+  monthly_balance: string | number
+}
+export type MonthlyBalance = {
+  month: string
+  amount: string | number
 }
 
 export const api = {
@@ -172,22 +221,37 @@ export const api = {
     patchJson<MajorCategory>(`/api/categories/majors/${id}`, { major_category: input }),
   updateMinorCategory: (id: number, input: UpdateMinorCategoryInput) =>
     patchJson<MinorCategory>(`/api/categories/minors/${id}`, { minor_category: input }),
+  deleteMajorCategory: (id: number) => deleteJson(`/api/categories/majors/${id}`),
+  deleteMinorCategory: (id: number) => deleteJson(`/api/categories/minors/${id}`),
 
   createPaymentMethod: (input: CreatePaymentMethodInput) =>
     postJson<PaymentMethod>("/api/payment_methods", { payment_method: input }),
+  updatePaymentMethod: (id: number, input: UpdatePaymentMethodInput) =>
+    patchJson<PaymentMethod>(`/api/payment_methods/${id}`, { payment_method: input }),
+  deletePaymentMethod: (id: number) => deleteJson(`/api/payment_methods/${id}`),
 
   createExpense: (input: ExpenseMasterInput) =>
     postJson<ExpenseMaster>("/api/expenses", { expense: input }),
   updateExpense: (id: number, input: Partial<ExpenseMasterInput>) =>
     patchJson<ExpenseMaster>(`/api/expenses/${id}`, { expense: input }),
   deleteExpense: (id: number) => deleteJson(`/api/expenses/${id}`),
+  expenseActuals: (id: number) => fetchJson<MasterActual[]>(`/api/expenses/${id}/actuals`),
 
   createIncome: (input: IncomeMasterInput) =>
     postJson<IncomeMaster>("/api/incomes", { income: input }),
   updateIncome: (id: number, input: Partial<IncomeMasterInput>) =>
     patchJson<IncomeMaster>(`/api/incomes/${id}`, { income: input }),
   deleteIncome: (id: number) => deleteJson(`/api/incomes/${id}`),
+  incomeActuals: (id: number) => fetchJson<MasterActual[]>(`/api/incomes/${id}/actuals`),
 
   upsertForecast: (input: UpsertForecastInput) =>
     postJson<Forecast>("/api/forecasts/upsert", { forecast: input }),
+  syncActuals: (input?: SyncActualsInput) =>
+    postJson<SyncActualsResult>("/api/actuals/sync", input ?? {}),
+
+  dashboard: (month: string) => fetchJson<DashboardSummary>(`/api/dashboard?month=${encodeURIComponent(month)}`),
+  monthlyBalances: (month: string) => fetchJson<MonthlyBalance[]>(`/api/monthly_balances?month=${encodeURIComponent(month)}`),
+  upsertMonthlyBalance: (input: { month: string; amount: number }) =>
+    postJson<MonthlyBalance>("/api/monthly_balances/upsert", { monthly_balance: input }),
+  signOut: () => deleteJson("/api/session"),
 }

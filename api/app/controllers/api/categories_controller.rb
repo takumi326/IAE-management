@@ -61,6 +61,28 @@ module Api
       end
     end
 
+    def destroy_major
+      major = MajorCategory.find_by(id: params[:id])
+      return render_not_found("Major category not found") if major.blank?
+
+      major.destroy!
+      head :no_content
+    rescue ActiveRecord::DeleteRestrictionError
+      render json: { error: { code: "conflict", message: "Major category is referenced by minor categories" } },
+             status: :unprocessable_entity
+    end
+
+    def destroy_minor
+      minor = MinorCategory.find_by(id: params[:id])
+      return render_not_found("Minor category not found") if minor.blank?
+
+      minor.destroy!
+      head :no_content
+    rescue ActiveRecord::DeleteRestrictionError
+      render json: { error: { code: "conflict", message: "Minor category is referenced by expenses or incomes" } },
+             status: :unprocessable_entity
+    end
+
     private
 
     def major_category_params

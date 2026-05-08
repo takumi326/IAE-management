@@ -108,4 +108,48 @@ RSpec.describe "Api::Categories", type: :request do
       expect(minor.major_category_id).to eq(other_major.id)
     end
   end
+
+  describe "DELETE /api/categories/majors/:id" do
+    it "destroys an unreferenced major category" do
+      major = create(:major_category, kind: :expense)
+
+      expect {
+        delete "/api/categories/majors/#{major.id}", headers: headers
+      }.to change(MajorCategory, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "returns 422 when major has minors" do
+      major = create(:major_category, kind: :expense)
+      create(:minor_category, major_category: major)
+
+      delete "/api/categories/majors/#{major.id}", headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  describe "DELETE /api/categories/minors/:id" do
+    it "destroys an unreferenced minor category" do
+      minor = create(:minor_category)
+
+      expect {
+        delete "/api/categories/minors/#{minor.id}", headers: headers
+      }.to change(MinorCategory, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "returns 422 when minor is referenced by expense" do
+      major = create(:major_category, kind: :expense)
+      minor = create(:minor_category, major_category: major)
+      payment_method = create(:payment_method)
+      create(:expense, minor_category: minor, payment_method: payment_method)
+
+      delete "/api/categories/minors/#{minor.id}", headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
 end

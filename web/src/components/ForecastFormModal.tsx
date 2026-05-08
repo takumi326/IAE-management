@@ -54,7 +54,7 @@ export function ForecastFormModal({ onClose, onSaved, kind, month, initialAmount
             <input
               type="number"
               min="0"
-              step="1000"
+              step="1"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="200000"

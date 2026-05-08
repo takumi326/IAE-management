@@ -98,4 +98,50 @@ RSpec.describe "Api::PaymentMethods", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
   end
+
+  describe "PATCH /api/payment_methods/:id" do
+    it "updates payment method" do
+      pm = create(:payment_method, name: "楽天カード", method_type: "card", closing_day: nil, debit_day: 27)
+
+      patch "/api/payment_methods/#{pm.id}",
+            params: {
+              payment_method: {
+                name: "楽天カード改",
+                method_type: "bank_withdrawal",
+                closing_day: 20,
+                debit_day: 15
+              }
+            },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["data"]["name"]).to eq("楽天カード改")
+      expect(body["data"]["method_type"]).to eq("bank_withdrawal")
+      expect(body["data"]["closing_day"]).to be_nil
+      expect(body["data"]["debit_day"]).to be_nil
+    end
+  end
+
+  describe "DELETE /api/payment_methods/:id" do
+    it "destroys an unreferenced payment method" do
+      pm = create(:payment_method)
+
+      expect {
+        delete "/api/payment_methods/#{pm.id}", headers: headers
+      }.to change(PaymentMethod, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "returns 422 when referenced by expenses" do
+      pm = create(:payment_method)
+      minor = create(:minor_category, major_category: create(:major_category, kind: :expense))
+      create(:expense, minor_category: minor, payment_method: pm)
+
+      delete "/api/payment_methods/#{pm.id}", headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
 end

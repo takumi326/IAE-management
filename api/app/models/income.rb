@@ -6,7 +6,8 @@ class Income < ApplicationRecord
   has_many :income_transactions, dependent: :destroy
   has_many :transactions, through: :income_transactions, source: :ledger_transaction
 
-  validates :income_type, :start_month, presence: true
+  validates :income_type, :start_month, :amount, presence: true
+  validates :amount, numericality: { greater_than_or_equal_to: 0 }
   validate :end_month_not_before_start_month
 
   private

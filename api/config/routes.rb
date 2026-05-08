@@ -12,12 +12,32 @@ Rails.application.routes.draw do
     post "categories/minors", to: "categories#create_minor"
     patch "categories/majors/:id", to: "categories#update_major"
     patch "categories/minors/:id", to: "categories#update_minor"
+    delete "categories/majors/:id", to: "categories#destroy_major"
+    delete "categories/minors/:id", to: "categories#destroy_minor"
 
-    resources :payment_methods, only: [ :index, :create ]
-    resources :expenses, only: [ :index, :create, :update, :destroy ]
-    resources :incomes, only: [ :index, :create, :update, :destroy ]
+    resources :payment_methods, only: [ :index, :create, :update, :destroy ]
+    resources :expenses, only: [ :index, :create, :update, :destroy ] do
+      member do
+        get :actuals
+      end
+    end
+    resources :incomes, only: [ :index, :create, :update, :destroy ] do
+      member do
+        get :actuals
+      end
+    end
 
     resources :forecasts, only: [ :index ] do
+      collection do
+        post :upsert
+      end
+    end
+
+    post "actuals/sync", to: "actuals#sync"
+    get "dashboard", to: "dashboard#show"
+    delete "session", to: "sessions#destroy"
+
+    resources :monthly_balances, only: [ :index ] do
       collection do
         post :upsert
       end

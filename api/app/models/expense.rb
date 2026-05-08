@@ -1,5 +1,6 @@
 class Expense < ApplicationRecord
   enum :expense_type, { one_time: 0, recurring: 1 }, prefix: true
+  enum :recurring_cycle, { monthly: 0, yearly: 1 }, prefix: true
 
   belongs_to :minor_category
   belongs_to :payment_method
@@ -7,8 +8,13 @@ class Expense < ApplicationRecord
   has_many :expense_transactions, dependent: :destroy
   has_many :transactions, through: :expense_transactions, source: :ledger_transaction
 
-  validates :expense_type, :start_month, presence: true
+  validates :expense_type, :start_month, :amount, presence: true
+  validates :amount, numericality: { greater_than_or_equal_to: 0 }
+  validates :renewal_month, inclusion: { in: 1..12, allow_nil: true }
   validate :end_month_not_before_start_month
+  validate :recurring_options
+
+  before_validation :normalize_recurring_fields
 
   private
 
@@ -17,5 +23,21 @@ class Expense < ApplicationRecord
     return unless end_month < start_month
 
     errors.add(:end_month, "must be greater than or equal to start_month")
+  end
+
+  def recurring_options
+    return unless expense_type_recurring?
+    return unless recurring_cycle_yearly? && renewal_month.blank?
+
+    errors.add(:renewal_month, "must be present for yearly recurring")
+  end
+
+  def normalize_recurring_fields
+    if expense_type_one_time?
+      self.recurring_cycle = :monthly
+      self.renewal_month = nil
+    elsif recurring_cycle_monthly?
+      self.renewal_month = nil
+    end
   end
 end

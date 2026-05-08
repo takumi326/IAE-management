@@ -1,9 +1,12 @@
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { ActualEditorModal } from "../components/ActualEditorModal.tsx"
 import { ImportModal } from "../components/ImportModal.tsx"
 import { ForecastFormModal } from "../components/ForecastFormModal.tsx"
-import type { CategoryKind } from "../lib/api.ts"
+import { ForecastBulkEditorModal } from "../components/ForecastBulkEditorModal.tsx"
+import { api, type CategoryKind, type DashboardSummary, type Forecast } from "../lib/api.ts"
+import { apiErrorMessage } from "../lib/errors.ts"
 import { formatYen, formatYenDelta } from "../lib/format.ts"
+import { useFetch } from "../lib/useFetch.ts"
 
 type Mode = "実" | "予"
 
@@ -14,45 +17,6 @@ type MonthSummary = {
   balance: { amount: number; mode: Mode }
 }
 
-const yearlySummary: MonthSummary[] = [
-  {
-    month: "2026/04",
-    income: { amount: 340_000, mode: "実" },
-    expense: { amount: 190_000, mode: "実" },
-    balance: { amount: 2_220_000, mode: "実" },
-  },
-  {
-    month: "2026/05",
-    income: { amount: 320_000, mode: "実" },
-    expense: { amount: 180_000, mode: "実" },
-    balance: { amount: 2_345_678, mode: "予" },
-  },
-  {
-    month: "2026/06",
-    income: { amount: 350_000, mode: "予" },
-    expense: { amount: 210_000, mode: "予" },
-    balance: { amount: 2_485_678, mode: "予" },
-  },
-]
-
-const expenseByCategory: { label: string; amount: number; mode: Mode }[] = [
-  { label: "ソシャゲ", amount: 20_000, mode: "実" },
-  { label: "サブスク", amount: 5_470, mode: "実" },
-  { label: "食費", amount: 45_000, mode: "実" },
-  { label: "雑費", amount: 30_000, mode: "予" },
-]
-
-const expenseByPayment: { label: string; amount: number; mode: Mode }[] = [
-  { label: "PayPayカード", amount: 80_000, mode: "実" },
-  { label: "Amazonカード", amount: 35_000, mode: "実" },
-  { label: "みずほ口座引落", amount: 65_000, mode: "実" },
-]
-
-const incomeByCategory: { label: string; amount: number; mode: Mode }[] = [
-  { label: "給与", amount: 320_000, mode: "実" },
-  { label: "副収入", amount: 0, mode: "予" },
-]
-
 type ForecastTarget = {
   kind: CategoryKind
   month: string
@@ -60,29 +24,101 @@ type ForecastTarget = {
 }
 
 export function DashboardPage() {
-  const [month, setMonth] = useState("2026-05")
+  const [month, setMonth] = useState(toMonthInput(Date.now()))
   const [actualEditorOpen, setActualEditorOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [forecastTarget, setForecastTarget] = useState<ForecastTarget | null>(null)
+  const [bulkEditorOpen, setBulkEditorOpen] = useState(false)
+  const [monthEndBalanceInput, setMonthEndBalanceInput] = useState("")
+  const [monthEndSaving, setMonthEndSaving] = useState(false)
+  const [monthEndError, setMonthEndError] = useState<string | null>(null)
 
-  const expectedBalance = 2_345_678
-  const lastMonthDiff = 123_456
-  const incomeAmount = 320_000
-  const incomeMode: Mode = "実"
-  const expenseAmount = 180_000
-  const expenseMode: Mode = "実"
+  const forecastState = useFetch<Forecast[]>(() => api.forecasts())
+  const dashboardLoader = useCallback(() => api.dashboard(monthInputToDate(month)), [month])
+  const dashboardState = useFetch(dashboardLoader)
 
   const openForecast = (target: ForecastTarget) => setForecastTarget(target)
   const closeForecast = () => setForecastTarget(null)
+  const onForecastSaved = () => {
+    closeForecast()
+    forecastState.refetch()
+  }
+
+  useEffect(() => {
+    void api.syncActuals()
+  }, [])
+
+  useEffect(() => {
+    if (dashboardState.status !== "success") return
+    const amount = toNumber(dashboardState.data.monthly_balance)
+    setMonthEndBalanceInput(String(amount))
+  }, [dashboardState.status, dashboardState.status === "success" ? dashboardState.data.monthly_balance : null])
+
+  const selectedMonth = monthInputToDate(month)
+  const fiscalMonths = useMemo(() => buildFiscalMonths(selectedMonth), [selectedMonth])
+  const forecastsByKey = useMemo(() => toForecastMap(forecastState.status === "success" ? forecastState.data : []), [forecastState])
+
+  const yearlySummary: MonthSummary[] = useMemo(() => {
+    let runningBalance = 0
+    return fiscalMonths.map((m) => {
+      const income = forecastsByKey.get(keyOf("income", m)) ?? 0
+      const expense = forecastsByKey.get(keyOf("expense", m)) ?? 0
+      runningBalance += income - expense
+      return {
+        month: dateToRowMonth(m),
+        income: { amount: income, mode: "予" as const },
+        expense: { amount: expense, mode: "予" as const },
+        balance: { amount: runningBalance, mode: "予" as const },
+      }
+    })
+  }, [fiscalMonths, forecastsByKey])
+
+  const monthIncome = forecastsByKey.get(keyOf("income", selectedMonth)) ?? 0
+  const monthExpense = forecastsByKey.get(keyOf("expense", selectedMonth)) ?? 0
+  const selectedIdx = fiscalMonths.findIndex((m) => m === selectedMonth)
+  const expectedBalance =
+    selectedIdx >= 0 ? yearlySummary[selectedIdx].balance.amount : monthIncome - monthExpense
+  const previousBalance = selectedIdx > 0 ? yearlySummary[selectedIdx - 1].balance.amount : 0
+  const lastMonthDiff = expectedBalance - previousBalance
+
+  const saveMonthEndBalance = async () => {
+    const amount = Number(monthEndBalanceInput)
+    if (!Number.isFinite(amount) || amount < 0) {
+      setMonthEndError("月末残高は0以上の数字で入力してください")
+      return
+    }
+    setMonthEndSaving(true)
+    setMonthEndError(null)
+    try {
+      await api.upsertMonthlyBalance({ month: monthInputToDate(month), amount: Math.round(amount) })
+      dashboardState.refetch()
+    } catch (error) {
+      setMonthEndError(apiErrorMessage(error))
+    } finally {
+      setMonthEndSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <button className="rounded-lg border border-slate-300 px-2 py-1 text-sm">{"<"}</button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+              onClick={() => setMonth(addMonthsToMonthInput(month, -1))}
+            >
+              {"<"}
+            </button>
             <h2 className="text-xl font-bold">{month.replace("-", "年")}月</h2>
-            <button className="rounded-lg border border-slate-300 px-2 py-1 text-sm">{">"}</button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+              onClick={() => setMonth(addMonthsToMonthInput(month, 1))}
+            >
+              {">"}
+            </button>
             <input
               type="month"
               value={month}
@@ -91,13 +127,19 @@ export function DashboardPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <button className="rounded-lg border border-slate-300 px-3 py-1.5">今月へ</button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-300 px-3 py-1.5"
+              onClick={() => setMonth(toMonthInput(Date.now()))}
+            >
+              今月へ
+            </button>
             <button
               type="button"
               onClick={() => setActualEditorOpen(true)}
               className="rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500"
             >
-              ＋ 実績を入力
+              ＋ 単発の支出を追加
             </button>
             <button
               type="button"
@@ -105,6 +147,13 @@ export function DashboardPage() {
               className="rounded-lg border border-indigo-300 bg-white px-3 py-1.5 font-medium text-indigo-700 hover:bg-indigo-50"
             >
               取込
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkEditorOpen(true)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5"
+            >
+              予測をまとめて編集
             </button>
           </div>
         </div>
@@ -117,17 +166,17 @@ export function DashboardPage() {
           </article>
           <SummaryCard
             label="収入"
-            amount={incomeAmount}
-            mode={incomeMode}
+            amount={monthIncome}
+            mode="予"
             tone="emerald"
-            onEditForecast={() => openForecast({ kind: "income", month: monthInputToDate(month), initialAmount: incomeAmount })}
+            onEditForecast={() => openForecast({ kind: "income", month: selectedMonth, initialAmount: monthIncome })}
           />
           <SummaryCard
             label="支出"
-            amount={expenseAmount}
-            mode={expenseMode}
+            amount={monthExpense}
+            mode="予"
             tone="rose"
-            onEditForecast={() => openForecast({ kind: "expense", month: monthInputToDate(month), initialAmount: expenseAmount })}
+            onEditForecast={() => openForecast({ kind: "expense", month: selectedMonth, initialAmount: monthExpense })}
           />
         </div>
         <p className="mt-2 text-xs text-slate-500">
@@ -137,8 +186,15 @@ export function DashboardPage() {
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">今年度サマリ（2026/04〜2027/03）</h2>
+          <h2 className="text-lg font-semibold">
+            今年度サマリ（{dateToRowMonth(fiscalMonths[0])}〜{dateToRowMonth(fiscalMonths[fiscalMonths.length - 1])}）
+          </h2>
         </div>
+        {forecastState.status === "error" && (
+          <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            予測の読み込みに失敗しました: {apiErrorMessage(forecastState.error)}
+          </p>
+        )}
         <div className="overflow-x-auto rounded-lg border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500">
@@ -195,9 +251,10 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <ExpenseBreakdownCard />
-        <BreakdownCard title="収入" items={incomeByCategory} accent="text-emerald-600" />
+      <section>
+        <ExpenseBreakdownCard
+          state={dashboardState}
+        />
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -205,22 +262,61 @@ export function DashboardPage() {
         <div className="flex flex-wrap items-center gap-3">
           <input
             type="number"
+            min="0"
             placeholder="例: 2300000"
+            value={monthEndBalanceInput}
+            onChange={(event) => setMonthEndBalanceInput(event.target.value)}
             className="w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
-          <button className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">保存</button>
+          <button
+            type="button"
+            onClick={() => void saveMonthEndBalance()}
+            disabled={monthEndSaving}
+            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
+          >
+            {monthEndSaving ? "保存中…" : "保存"}
+          </button>
         </div>
+        {monthEndError && <p className="mt-2 text-sm text-rose-700">{monthEndError}</p>}
       </section>
 
-      {actualEditorOpen && <ActualEditorModal month={month} onClose={() => setActualEditorOpen(false)} />}
-      {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
+      {actualEditorOpen && (
+        <ActualEditorModal
+          month={month}
+          onClose={() => setActualEditorOpen(false)}
+          onSaved={() => {
+            setActualEditorOpen(false)
+            dashboardState.refetch()
+          }}
+        />
+      )}
+      {importOpen && (
+        <ImportModal
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            setImportOpen(false)
+            dashboardState.refetch()
+          }}
+        />
+      )}
       {forecastTarget && (
         <ForecastFormModal
           kind={forecastTarget.kind}
           month={forecastTarget.month}
           initialAmount={forecastTarget.initialAmount}
           onClose={closeForecast}
-          onSaved={closeForecast}
+          onSaved={onForecastSaved}
+        />
+      )}
+      {bulkEditorOpen && (
+        <ForecastBulkEditorModal
+          startMonth={monthInputToDate(toMonthInput(Date.now()))}
+          forecasts={forecastState.status === "success" ? forecastState.data : []}
+          onClose={() => setBulkEditorOpen(false)}
+          onSaved={() => {
+            setBulkEditorOpen(false)
+            forecastState.refetch()
+          }}
         />
       )}
     </div>
@@ -291,9 +387,31 @@ function ModeBadge({ mode, onClick }: { mode: Mode; onClick?: () => void }) {
 
 type BreakdownItem = { label: string; amount: number; mode: Mode }
 
-function ExpenseBreakdownCard() {
+function ExpenseBreakdownCard({
+  state,
+}: {
+  state: {
+    status: "loading" | "success" | "error"
+    data: DashboardSummary | null
+    error: Error | null
+  }
+}) {
   const [view, setView] = useState<"payment" | "category">("payment")
-  const items = view === "payment" ? expenseByPayment : expenseByCategory
+  const dashboard = state.status === "success" ? state.data : null
+  const paymentItems = dashboard
+    ? dashboard.expense_by_payment.map((item) => ({ label: item.label, amount: toNumber(item.amount), mode: item.mode as Mode }))
+    : []
+  const categoryGroups: LocalCategoryBreakdownGroup[] = dashboard
+    ? dashboard.expense_by_category_groups.map((group) => ({
+        major: group.major,
+        mode: group.mode as Mode,
+        minors: group.minors.map((minor) => ({
+          label: minor.label,
+          amount: toNumber(minor.amount),
+          mode: minor.mode as Mode,
+        })),
+      }))
+    : []
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -308,19 +426,61 @@ function ExpenseBreakdownCard() {
           </BreakdownTab>
         </div>
       </div>
-      <BreakdownList items={items} accent="text-rose-600" />
+      {state.status === "loading" && <p className="text-sm text-slate-500">読み込み中…</p>}
+      {state.status === "error" && (
+        <p className="text-sm text-rose-700">内訳の読み込みに失敗しました: {apiErrorMessage(state.error)}</p>
+      )}
+      {state.status === "success" &&
+        (view === "payment" ? (
+          <BreakdownList items={paymentItems} accent="text-rose-600" />
+        ) : (
+          <CategoryBreakdownList groups={categoryGroups} />
+        ))}
     </div>
   )
 }
 
-function BreakdownCard({ title, items, accent }: { title: string; items: BreakdownItem[]; accent: string }) {
+type LocalCategoryBreakdownGroup = {
+  major: string
+  mode: Mode
+  minors: BreakdownItem[]
+}
+
+function CategoryBreakdownList({ groups }: { groups: LocalCategoryBreakdownGroup[] }) {
+  if (groups.length === 0) {
+    return <p className="text-sm text-slate-500">データがありません</p>
+  }
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{title}</h2>
-      </div>
-      <BreakdownList items={items} accent={accent} />
-    </div>
+    <ul className="space-y-2">
+      {groups.map((group) => {
+        const total = group.minors.reduce((sum, minor) => sum + minor.amount, 0)
+        return (
+          <li key={group.major} className="rounded-lg border border-slate-200">
+            <details open className="group">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm">
+                <span className="font-medium">{group.major}</span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="font-semibold text-rose-600">{formatYen(total)}</span>
+                  <ModeBadge mode={group.mode} />
+                </span>
+              </summary>
+              <ul className="border-t border-slate-100">
+                {group.minors.map((minor) => (
+                  <li key={`${group.major}-${minor.label}`} className="flex items-center justify-between px-3 py-2 text-sm">
+                    <span className="text-slate-700">{minor.label}</span>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="font-semibold text-rose-600">{formatYen(minor.amount)}</span>
+                      <ModeBadge mode={minor.mode} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -372,4 +532,58 @@ function monthInputToDate(value: string): string {
 function rowMonthToDate(rowMonth: string): string {
   // "2026/05" → "2026-05-01"
   return `${rowMonth.replace("/", "-")}-01`
+}
+
+function toMonthInput(value: number): string {
+  const d = new Date(value)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  return `${y}-${m}`
+}
+
+function addMonthsToMonthInput(monthInput: string, deltaMonths: number): string {
+  const [yRaw, mRaw] = monthInput.split("-")
+  const y = Number(yRaw)
+  const m0 = Number(mRaw) - 1 // 0-based
+  const d = new Date(y, m0, 1)
+  d.setMonth(d.getMonth() + deltaMonths)
+  const yy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  return `${yy}-${mm}`
+}
+
+function buildFiscalMonths(selectedMonth: string): string[] {
+  const [y, m] = selectedMonth.split("-").map(Number)
+  const fiscalYear = m >= 4 ? y : y - 1
+  const months: string[] = []
+  for (let i = 0; i < 12; i += 1) {
+    const date = new Date(fiscalYear, 3 + i, 1)
+    const yy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, "0")
+    months.push(`${yy}-${mm}-01`)
+  }
+  return months
+}
+
+function keyOf(kind: CategoryKind, month: string): string {
+  return `${kind}:${month}`
+}
+
+function toForecastMap(forecasts: Forecast[]): Map<string, number> {
+  const map = new Map<string, number>()
+  forecasts.forEach((f) => {
+    const amount = toNumber(f.amount)
+    map.set(keyOf(f.kind, f.month), Number.isFinite(amount) ? amount : 0)
+  })
+  return map
+}
+
+function toNumber(value: string | number): number {
+  const n = typeof value === "string" ? Number(value) : value
+  return Number.isFinite(n) ? n : 0
+}
+
+function dateToRowMonth(date: string): string {
+  const [y, m] = date.split("-")
+  return `${y}/${m}`
 }
