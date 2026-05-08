@@ -17,4 +17,66 @@ RSpec.describe "Api::Incomes", type: :request do
       expect(body["data"].first["minor_category_id"]).to eq(minor.id)
     end
   end
+
+  describe "POST /api/incomes" do
+    it "creates an income" do
+      expect {
+        post "/api/incomes",
+             params: {
+               income: {
+                 minor_category_id: minor.id,
+                 income_type: "recurring",
+                 start_month: "2026-05-01",
+                 end_month: nil
+               }
+             },
+             headers: headers
+      }.to change(Income, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(body["data"]["income_type"]).to eq("recurring")
+    end
+
+    it "returns 422 for invalid params" do
+      post "/api/incomes",
+           params: { income: { minor_category_id: minor.id } },
+           headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  describe "PATCH /api/incomes/:id" do
+    let!(:income) { create(:income, minor_category: minor) }
+
+    it "updates an income" do
+      patch "/api/incomes/#{income.id}",
+            params: { income: { income_type: "recurring" } },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(income.reload.income_type).to eq("recurring")
+    end
+
+    it "returns 404 for missing income" do
+      patch "/api/incomes/0",
+            params: { income: { income_type: "recurring" } },
+            headers: headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "DELETE /api/incomes/:id" do
+    let!(:income) { create(:income, minor_category: minor) }
+
+    it "destroys an income" do
+      expect {
+        delete "/api/incomes/#{income.id}", headers: headers
+      }.to change(Income, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
+    end
+  end
 end

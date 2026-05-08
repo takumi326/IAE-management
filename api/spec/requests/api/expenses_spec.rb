@@ -8,12 +8,7 @@ RSpec.describe "Api::Expenses", type: :request do
 
   describe "GET /api/expenses" do
     it "returns expenses list" do
-      Expense.create!(
-        minor_category: minor,
-        payment_method: payment_method,
-        expense_type: :one_time,
-        start_month: Date.new(2026, 5, 1)
-      )
+      create(:expense, minor_category: minor, payment_method: payment_method)
 
       get "/api/expenses", headers: headers
 
@@ -21,6 +16,69 @@ RSpec.describe "Api::Expenses", type: :request do
       body = JSON.parse(response.body)
       expect(body["data"].size).to eq(1)
       expect(body["data"].first["minor_category_id"]).to eq(minor.id)
+    end
+  end
+
+  describe "POST /api/expenses" do
+    it "creates an expense" do
+      expect {
+        post "/api/expenses",
+             params: {
+               expense: {
+                 minor_category_id: minor.id,
+                 payment_method_id: payment_method.id,
+                 expense_type: "recurring",
+                 start_month: "2026-05-01",
+                 end_month: nil
+               }
+             },
+             headers: headers
+      }.to change(Expense, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(body["data"]["expense_type"]).to eq("recurring")
+    end
+
+    it "returns 422 for invalid params" do
+      post "/api/expenses",
+           params: { expense: { minor_category_id: minor.id, payment_method_id: payment_method.id } },
+           headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  describe "PATCH /api/expenses/:id" do
+    let!(:expense) { create(:expense, minor_category: minor, payment_method: payment_method) }
+
+    it "updates an expense" do
+      patch "/api/expenses/#{expense.id}",
+            params: { expense: { expense_type: "recurring" } },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(expense.reload.expense_type).to eq("recurring")
+    end
+
+    it "returns 404 for missing expense" do
+      patch "/api/expenses/0",
+            params: { expense: { expense_type: "recurring" } },
+            headers: headers
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "DELETE /api/expenses/:id" do
+    let!(:expense) { create(:expense, minor_category: minor, payment_method: payment_method) }
+
+    it "destroys an expense" do
+      expect {
+        delete "/api/expenses/#{expense.id}", headers: headers
+      }.to change(Expense, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
     end
   end
 end

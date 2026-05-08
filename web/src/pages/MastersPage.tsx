@@ -1,33 +1,35 @@
 import { useCallback, useState } from "react"
 import {
   api,
+  type CategoryKind,
   type IncomeMaster,
   type MajorCategory,
   type MinorCategory,
-  type PaymentMethod,
 } from "../lib/api.ts"
 import { useFetch } from "../lib/useFetch.ts"
-import { formatRecurringTypeLabel } from "../lib/labels.ts"
+import { formatPaymentMethodSchedule, formatPaymentMethodTypeLabel, formatRecurringTypeLabel } from "../lib/labels.ts"
+import { MajorCategoryFormModal } from "../components/MajorCategoryFormModal.tsx"
+import { MinorCategoryFormModal } from "../components/MinorCategoryFormModal.tsx"
+import { PaymentMethodFormModal } from "../components/PaymentMethodFormModal.tsx"
+import { ExpenseMasterFormModal } from "../components/ExpenseMasterFormModal.tsx"
+import { IncomeMasterFormModal } from "../components/IncomeMasterFormModal.tsx"
 
 const tabs = [
-  { id: "categories", label: "カテゴリ" },
-  { id: "payments", label: "支払方法" },
   { id: "expenses", label: "支出" },
   { id: "incomes", label: "収入" },
+  { id: "categories", label: "カテゴリ" },
+  { id: "payments", label: "支払方法" },
 ] as const
 
 type TabId = (typeof tabs)[number]["id"]
 
 export function MastersPage() {
-  const [active, setActive] = useState<TabId>("categories")
+  const [active, setActive] = useState<TabId>("expenses")
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold">マスタ設定</h2>
-          <p className="text-xs text-slate-500">カテゴリ・支払方法・支出・収入を一括で管理</p>
-        </div>
+        <h2 className="mb-4 text-xl font-bold">マスタ設定</h2>
         <nav className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
@@ -51,14 +53,15 @@ export function MastersPage() {
   )
 }
 
-const KIND_LABEL: Record<number, string> = {
-  0: "支出",
-  1: "収入",
+const KIND_LABEL: Record<CategoryKind, string> = {
+  expense: "支出",
+  income: "収入",
 }
 
-const METHOD_TYPE_LABEL: Record<PaymentMethod["method_type"], string> = {
-  card: "カード",
-  bank_debit: "口座引落",
+function toKindLabel(kind: string): string {
+  if (kind === "expense") return KIND_LABEL.expense
+  if (kind === "income") return KIND_LABEL.income
+  return "不明"
 }
 
 function CategoriesSection() {
@@ -67,56 +70,146 @@ function CategoriesSection() {
     [],
   )
   const result = useFetch(loader)
+  const [openModal, setOpenModal] = useState<"major" | "minor" | null>(null)
+  const [editingMajor, setEditingMajor] = useState<MajorCategory | null>(null)
+  const [editingMinor, setEditingMinor] = useState<MinorCategory | null>(null)
 
   if (result.status === "loading") return <Loading label="カテゴリを読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
   const [majors, minors] = result.data
+  const handleSaved = () => {
+    setOpenModal(null)
+    setEditingMajor(null)
+    setEditingMinor(null)
+    result.refetch()
+  }
+
+  const minorsByMajorId = new Map<number, MinorCategory[]>()
+  for (const minor of minors) {
+    const group = minorsByMajorId.get(minor.major_category.id)
+    if (group) {
+      group.push(minor)
+    } else {
+      minorsByMajorId.set(minor.major_category.id, [minor])
+    }
+  }
+
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      <Panel title="大カテゴリ" actionLabel="＋ 追加">
-        <List
-          items={majors}
-          empty="大カテゴリが未登録"
-          render={(major: MajorCategory) => (
-            <li
-              key={major.id}
-              className="flex items-center justify-between py-2 text-sm"
-            >
-              <span>{major.name}</span>
-              <span className="text-slate-500">{KIND_LABEL[major.kind] ?? major.kind}</span>
-            </li>
-          )}
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-lg font-semibold">カテゴリ</h3>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setOpenModal("major")}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            ＋ 大カテゴリ
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpenModal("minor")}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+          >
+            ＋ 小カテゴリ
+          </button>
+        </div>
+      </div>
+
+      {majors.length === 0 ? (
+        <p className="text-sm text-slate-500">大カテゴリが未登録</p>
+      ) : (
+        <ul className="space-y-2">
+          {majors.map((major: MajorCategory) => {
+            const majorMinors = minorsByMajorId.get(major.id) ?? []
+            return (
+              <li key={major.id} className="rounded-lg border border-slate-200">
+                <details open className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm">
+                    <span className="font-medium">{major.name}</span>
+                    <span className="flex items-center gap-2 text-xs text-slate-500">
+                      <span>{toKindLabel(major.kind)}</span>
+                      <span>{majorMinors.length}件</span>
+                      <button
+                        type="button"
+                        className="rounded border border-slate-300 px-1.5 py-0.5 text-xs hover:bg-slate-100"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setEditingMajor(major)
+                        }}
+                      >
+                        編集
+                      </button>
+                    </span>
+                  </summary>
+                  <div className="border-t border-slate-100 px-3 py-2">
+                    {majorMinors.length === 0 ? (
+                      <p className="text-xs text-slate-400">小カテゴリなし</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {majorMinors.map((minor) => (
+                          <li key={minor.id} className="flex items-center justify-between rounded bg-slate-50 px-2 py-1 text-sm text-slate-700">
+                            <span>{minor.name}</span>
+                            <button
+                              type="button"
+                              className="rounded border border-slate-300 px-1.5 py-0.5 text-xs hover:bg-white"
+                              onClick={() => setEditingMinor(minor)}
+                            >
+                              編集
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </details>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {openModal === "major" && (
+        <MajorCategoryFormModal onClose={() => setOpenModal(null)} onSaved={handleSaved} />
+      )}
+      {openModal === "minor" && (
+        <MinorCategoryFormModal
+          onClose={() => setOpenModal(null)}
+          onSaved={handleSaved}
+          majors={majors}
         />
-      </Panel>
-      <Panel title="小カテゴリ" actionLabel="＋ 追加">
-        <List
-          items={minors}
-          empty="小カテゴリが未登録"
-          render={(minor: MinorCategory) => (
-            <li
-              key={minor.id}
-              className="flex items-center justify-between py-2 text-sm"
-            >
-              <span>{minor.name}</span>
-              <span className="text-slate-500">{minor.major_category.name}</span>
-            </li>
-          )}
+      )}
+      {editingMajor && (
+        <MajorCategoryFormModal onClose={() => setEditingMajor(null)} onSaved={handleSaved} initial={editingMajor} />
+      )}
+      {editingMinor && (
+        <MinorCategoryFormModal
+          onClose={() => setEditingMinor(null)}
+          onSaved={handleSaved}
+          majors={majors}
+          initial={editingMinor}
         />
-      </Panel>
-    </div>
+      )}
+    </section>
   )
 }
 
 function PaymentMethodsSection() {
   const loader = useCallback(() => api.paymentMethods(), [])
   const result = useFetch(loader)
+  const [open, setOpen] = useState(false)
 
   if (result.status === "loading") return <Loading label="支払方法を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
+  const handleCreated = () => {
+    setOpen(false)
+    result.refetch()
+  }
+
   return (
-    <Panel title="支払方法" actionLabel="＋ 追加">
+    <Panel title="支払方法" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
       {result.data.length === 0 ? (
         <p className="text-sm text-slate-500">支払方法が未登録</p>
       ) : (
@@ -124,11 +217,13 @@ function PaymentMethodsSection() {
           {result.data.map((method) => (
             <article key={method.id} className="rounded-lg border border-slate-200 p-3">
               <p className="text-sm font-medium">{method.name}</p>
-              <p className="mt-1 text-xs text-slate-500">{METHOD_TYPE_LABEL[method.method_type]}</p>
+              <p className="mt-1 text-xs text-slate-600">{formatPaymentMethodTypeLabel(method.method_type)}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{formatPaymentMethodSchedule(method)}</p>
             </article>
           ))}
         </div>
       )}
+      {open && <PaymentMethodFormModal onClose={() => setOpen(false)} onCreated={handleCreated} />}
     </Panel>
   )
 }
@@ -139,6 +234,7 @@ function ExpenseMastersSection() {
     [],
   )
   const result = useFetch(loader)
+  const [open, setOpen] = useState(false)
 
   if (result.status === "loading") return <Loading label="支出マスタを読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
@@ -146,9 +242,13 @@ function ExpenseMastersSection() {
   const [expenses, minors, methods] = result.data
   const minorMap = buildMap(minors, (m) => m.id)
   const methodMap = buildMap(methods, (m) => m.id)
+  const handleCreated = () => {
+    setOpen(false)
+    result.refetch()
+  }
 
   return (
-    <Panel title="支出マスタ" actionLabel="＋ 追加">
+    <Panel title="支出マスタ" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
       <Table
         head={["カテゴリ", "種別", "支払方法", "開始月", "終了月"]}
         rows={expenses.map((row) => [
@@ -160,6 +260,14 @@ function ExpenseMastersSection() {
         ])}
         emptyMessage="支出マスタが未登録"
       />
+      {open && (
+        <ExpenseMasterFormModal
+          onClose={() => setOpen(false)}
+          onCreated={handleCreated}
+          minors={minors}
+          paymentMethods={methods}
+        />
+      )}
     </Panel>
   )
 }
@@ -170,15 +278,20 @@ function IncomeMastersSection() {
     [],
   )
   const result = useFetch(loader)
+  const [open, setOpen] = useState(false)
 
   if (result.status === "loading") return <Loading label="収入マスタを読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
   const [incomes, minors] = result.data
   const minorMap = buildMap(minors, (m) => m.id)
+  const handleCreated = () => {
+    setOpen(false)
+    result.refetch()
+  }
 
   return (
-    <Panel title="収入マスタ" actionLabel="＋ 追加">
+    <Panel title="収入マスタ" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
       <Table
         head={["カテゴリ", "種別", "開始月", "終了月"]}
         rows={incomes.map((row: IncomeMaster) => [
@@ -189,6 +302,13 @@ function IncomeMastersSection() {
         ])}
         emptyMessage="収入マスタが未登録"
       />
+      {open && (
+        <IncomeMasterFormModal
+          onClose={() => setOpen(false)}
+          onCreated={handleCreated}
+          minors={minors}
+        />
+      )}
     </Panel>
   )
 }
@@ -206,13 +326,27 @@ function buildMap<T, K>(items: T[], keyOf: (item: T) => K): Map<K, T> {
   return map
 }
 
-function Panel({ title, actionLabel, children }: { title: string; actionLabel?: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  actionLabel,
+  onAction,
+  children,
+}: {
+  title: string
+  actionLabel?: string
+  onAction?: () => void
+  children: React.ReactNode
+}) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-lg font-semibold">{title}</h3>
         {actionLabel && (
-          <button className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500">
+          <button
+            type="button"
+            onClick={onAction}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+          >
             {actionLabel}
           </button>
         )}
@@ -261,21 +395,6 @@ function Table({
       </table>
     </div>
   )
-}
-
-function List<T>({
-  items,
-  empty,
-  render,
-}: {
-  items: T[]
-  empty: string
-  render: (item: T) => React.ReactNode
-}) {
-  if (items.length === 0) {
-    return <p className="text-sm text-slate-500">{empty}</p>
-  }
-  return <ul className="divide-y divide-slate-100">{items.map(render)}</ul>
 }
 
 function Loading({ label }: { label: string }) {

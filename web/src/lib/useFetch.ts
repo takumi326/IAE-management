@@ -1,12 +1,22 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 type State<T> =
+  | { status: "loading"; data: null; error: null; refetch: () => void }
+  | { status: "success"; data: T; error: null; refetch: () => void }
+  | { status: "error"; data: null; error: Error; refetch: () => void }
+
+type InternalState<T> =
   | { status: "loading"; data: null; error: null }
   | { status: "success"; data: T; error: null }
   | { status: "error"; data: null; error: Error }
 
 export function useFetch<T>(loader: () => Promise<T>): State<T> {
-  const [state, setState] = useState<State<T>>({ status: "loading", data: null, error: null })
+  const [reloadKey, setReloadKey] = useState(0)
+  const [state, setState] = useState<InternalState<T>>({ status: "loading", data: null, error: null })
+
+  const refetch = useCallback(() => {
+    setReloadKey((k) => k + 1)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -25,7 +35,7 @@ export function useFetch<T>(loader: () => Promise<T>): State<T> {
     return () => {
       cancelled = true
     }
-  }, [loader])
+  }, [loader, reloadKey])
 
-  return state
+  return { ...state, refetch } as State<T>
 }

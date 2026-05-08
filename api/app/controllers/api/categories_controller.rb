@@ -19,7 +19,57 @@ module Api
       }
     end
 
+    def create_major
+      major = MajorCategory.new(major_category_params)
+      if major.save
+        render json: { data: serialize_major(major) }, status: :created
+      else
+        render_validation_error(major)
+      end
+    end
+
+    def create_minor
+      minor = MinorCategory.new(minor_category_params)
+      if minor.save
+        minor = MinorCategory.includes(:major_category).find(minor.id)
+        render json: { data: serialize_minor(minor) }, status: :created
+      else
+        render_validation_error(minor)
+      end
+    end
+
+    def update_major
+      major = MajorCategory.find_by(id: params[:id])
+      return render_not_found("Major category not found") if major.blank?
+
+      if major.update(major_category_params)
+        render json: { data: serialize_major(major) }
+      else
+        render_validation_error(major)
+      end
+    end
+
+    def update_minor
+      minor = MinorCategory.find_by(id: params[:id])
+      return render_not_found("Minor category not found") if minor.blank?
+
+      if minor.update(minor_category_params)
+        minor = MinorCategory.includes(:major_category).find(minor.id)
+        render json: { data: serialize_minor(minor) }
+      else
+        render_validation_error(minor)
+      end
+    end
+
     private
+
+    def major_category_params
+      params.expect(major_category: [ :kind, :name ])
+    end
+
+    def minor_category_params
+      params.expect(minor_category: [ :major_category_id, :name ])
+    end
 
     def serialize_major(category)
       {
@@ -39,6 +89,15 @@ module Api
           name: category.major_category.name
         }
       }
+    end
+
+    def render_validation_error(record)
+      render json: { error: { code: "validation_error", message: "Invalid params", details: record.errors } },
+             status: :unprocessable_entity
+    end
+
+    def render_not_found(message)
+      render json: { error: { code: "not_found", message: message } }, status: :not_found
     end
   end
 end
