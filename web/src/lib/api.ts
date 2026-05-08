@@ -1,3 +1,5 @@
+import { getSupabaseAccessToken } from "./supabase.ts"
+
 export type CategoryKind = "expense" | "income"
 export type ExpenseTypeCode = "one_time" | "recurring"
 export type RecurringCycleCode = "monthly" | "yearly"
@@ -83,11 +85,12 @@ async function parseError(response: Response): Promise<ApiError> {
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const accessToken = import.meta.env.DEV ? null : await getSupabaseAccessToken()
   const response = await fetch(path, {
-    credentials: "include",
     ...init,
     headers: {
       Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...(init?.headers ?? {}),
     },
