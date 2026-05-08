@@ -6,7 +6,7 @@ import { SettingsPage } from "./pages/SettingsPage.tsx"
 
 const navItems = [
   { to: "/", label: "ダッシュボード" },
-  { to: "/masters", label: "マスタ設定" },
+  { to: "/masters", label: "支出・収入" },
   { to: "/settings", label: "設定" },
 ]
 
@@ -29,8 +29,8 @@ export default function App() {
         <h1 className="text-base font-bold">収支管理</h1>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
-        <aside className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:block">
+      <div className="grid gap-4 lg:grid-cols-[220px_1fr] lg:items-start">
+        <aside className="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:block lg:h-[calc(100vh-3rem)] lg:overflow-y-auto">
           <SidebarHeader />
           <SidebarNav onNavigate={closeDrawer} />
         </aside>
@@ -74,8 +74,7 @@ export default function App() {
 function SidebarHeader() {
   return (
     <div>
-      <h1 className="mb-1 text-lg font-bold">収支管理</h1>
-      <p className="mb-4 text-xs text-slate-500">ダッシュボード</p>
+      <h1 className="mb-4 text-lg font-bold">収支管理</h1>
     </div>
   )
 }

@@ -8,6 +8,11 @@ const recurringTypeLabels = {
   recurring: "定期",
 } as const
 
+const recurringCycleLabels = {
+  monthly: "月次",
+  yearly: "年次",
+} as const
+
 const paymentMethodTypeLabels = {
   card: "クレジットカード",
   bank_debit: "口座引落",
@@ -20,6 +25,10 @@ export function formatKindLabel(kind: string): string {
 
 export function formatRecurringTypeLabel(type: string): string {
   return recurringTypeLabels[type as keyof typeof recurringTypeLabels] ?? type
+}
+
+export function formatRecurringCycleLabel(cycle: string): string {
+  return recurringCycleLabels[cycle as keyof typeof recurringCycleLabels] ?? cycle
 }
 
 export function formatPaymentMethodTypeLabel(type: string): string {

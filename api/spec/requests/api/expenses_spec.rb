@@ -28,6 +28,9 @@ RSpec.describe "Api::Expenses", type: :request do
                  minor_category_id: minor.id,
                  payment_method_id: payment_method.id,
                  expense_type: "recurring",
+                 recurring_cycle: "monthly",
+                 renewal_month: nil,
+                 amount: 12000,
                  start_month: "2026-05-01",
                  end_month: nil
                }
@@ -38,6 +41,8 @@ RSpec.describe "Api::Expenses", type: :request do
       expect(response).to have_http_status(:created)
       body = JSON.parse(response.body)
       expect(body["data"]["expense_type"]).to eq("recurring")
+      expect(body["data"]["recurring_cycle"]).to eq("monthly")
+      expect(body["data"]["amount"]).to eq(12000)
     end
 
     it "returns 422 for invalid params" do
@@ -79,6 +84,22 @@ RSpec.describe "Api::Expenses", type: :request do
       }.to change(Expense, :count).by(-1)
 
       expect(response).to have_http_status(:no_content)
+    end
+  end
+
+  describe "GET /api/expenses/:id/actuals" do
+    it "returns actual transaction list for expense" do
+      expense = create(:expense, minor_category: minor, payment_method: payment_method)
+      tx = Transaction.create!(month: Date.new(2026, 6, 1), amount: -12_000)
+      ExpenseTransaction.create!(expense: expense, ledger_transaction: tx)
+
+      get "/api/expenses/#{expense.id}/actuals", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["data"].size).to eq(1)
+      expect(body["data"].first["month"]).to eq("2026-06-01")
+      expect(body["data"].first["amount"]).to eq("12000.0")
     end
   end
 end

@@ -2,17 +2,27 @@ import { useCallback, useState } from "react"
 import {
   api,
   type CategoryKind,
+  type ExpenseMaster,
   type IncomeMaster,
   type MajorCategory,
+  type MasterActual,
   type MinorCategory,
+  type PaymentMethod,
 } from "../lib/api.ts"
 import { useFetch } from "../lib/useFetch.ts"
-import { formatPaymentMethodSchedule, formatPaymentMethodTypeLabel, formatRecurringTypeLabel } from "../lib/labels.ts"
+import { apiErrorMessage } from "../lib/errors.ts"
+import {
+  formatPaymentMethodSchedule,
+  formatPaymentMethodTypeLabel,
+  formatRecurringCycleLabel,
+  formatRecurringTypeLabel,
+} from "../lib/labels.ts"
 import { MajorCategoryFormModal } from "../components/MajorCategoryFormModal.tsx"
 import { MinorCategoryFormModal } from "../components/MinorCategoryFormModal.tsx"
 import { PaymentMethodFormModal } from "../components/PaymentMethodFormModal.tsx"
 import { ExpenseMasterFormModal } from "../components/ExpenseMasterFormModal.tsx"
 import { IncomeMasterFormModal } from "../components/IncomeMasterFormModal.tsx"
+import { Modal } from "../components/Modal.tsx"
 
 const tabs = [
   { id: "expenses", label: "支出" },
@@ -20,6 +30,9 @@ const tabs = [
   { id: "categories", label: "カテゴリ" },
   { id: "payments", label: "支払方法" },
 ] as const
+
+const actionButtonBaseClass =
+  "inline-flex min-h-9 min-w-[3.25rem] items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
 
 type TabId = (typeof tabs)[number]["id"]
 
@@ -29,7 +42,7 @@ export function MastersPage() {
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-xl font-bold">マスタ設定</h2>
+        <h2 className="mb-4 text-xl font-bold">支出・収入</h2>
         <nav className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
@@ -73,6 +86,7 @@ function CategoriesSection() {
   const [openModal, setOpenModal] = useState<"major" | "minor" | null>(null)
   const [editingMajor, setEditingMajor] = useState<MajorCategory | null>(null)
   const [editingMinor, setEditingMinor] = useState<MinorCategory | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   if (result.status === "loading") return <Loading label="カテゴリを読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
@@ -82,7 +96,30 @@ function CategoriesSection() {
     setOpenModal(null)
     setEditingMajor(null)
     setEditingMinor(null)
+    setActionError(null)
     result.refetch()
+  }
+
+  const onDeleteMajor = async (major: MajorCategory) => {
+    if (!window.confirm(`大カテゴリ「${major.name}」を削除しますか？`)) return
+    setActionError(null)
+    try {
+      await api.deleteMajorCategory(major.id)
+      result.refetch()
+    } catch (err) {
+      setActionError(apiErrorMessage(err))
+    }
+  }
+
+  const onDeleteMinor = async (minor: MinorCategory) => {
+    if (!window.confirm(`小カテゴリ「${minor.name}」を削除しますか？`)) return
+    setActionError(null)
+    try {
+      await api.deleteMinorCategory(minor.id)
+      result.refetch()
+    } catch (err) {
+      setActionError(apiErrorMessage(err))
+    }
   }
 
   const minorsByMajorId = new Map<number, MinorCategory[]>()
@@ -141,6 +178,16 @@ function CategoriesSection() {
                       >
                         編集
                       </button>
+                      <button
+                        type="button"
+                        className="rounded border border-rose-300 px-1.5 py-0.5 text-xs text-rose-700 hover:bg-rose-50"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          void onDeleteMajor(major)
+                        }}
+                      >
+                        削除
+                      </button>
                     </span>
                   </summary>
                   <div className="border-t border-slate-100 px-3 py-2">
@@ -151,13 +198,22 @@ function CategoriesSection() {
                         {majorMinors.map((minor) => (
                           <li key={minor.id} className="flex items-center justify-between rounded bg-slate-50 px-2 py-1 text-sm text-slate-700">
                             <span>{minor.name}</span>
-                            <button
-                              type="button"
-                              className="rounded border border-slate-300 px-1.5 py-0.5 text-xs hover:bg-white"
-                              onClick={() => setEditingMinor(minor)}
-                            >
-                              編集
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-white"
+                                onClick={() => setEditingMinor(minor)}
+                              >
+                                編集
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50"
+                                onClick={() => void onDeleteMinor(minor)}
+                              >
+                                削除
+                              </button>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -191,6 +247,7 @@ function CategoriesSection() {
           initial={editingMinor}
         />
       )}
+      {actionError && <p className="mt-3 text-sm text-rose-700">{actionError}</p>}
     </section>
   )
 }
@@ -199,13 +256,28 @@ function PaymentMethodsSection() {
   const loader = useCallback(() => api.paymentMethods(), [])
   const result = useFetch(loader)
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<PaymentMethod | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   if (result.status === "loading") return <Loading label="支払方法を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
-  const handleCreated = () => {
+  const handleSaved = () => {
     setOpen(false)
+    setEditing(null)
+    setActionError(null)
     result.refetch()
+  }
+
+  const onDelete = async (method: PaymentMethod) => {
+    if (!window.confirm(`支払方法「${method.name}」を削除しますか？`)) return
+    setActionError(null)
+    try {
+      await api.deletePaymentMethod(method.id)
+      result.refetch()
+    } catch (err) {
+      setActionError(apiErrorMessage(err))
+    }
   }
 
   return (
@@ -213,17 +285,35 @@ function PaymentMethodsSection() {
       {result.data.length === 0 ? (
         <p className="text-sm text-slate-500">支払方法が未登録</p>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {result.data.map((method) => (
-            <article key={method.id} className="rounded-lg border border-slate-200 p-3">
-              <p className="text-sm font-medium">{method.name}</p>
-              <p className="mt-1 text-xs text-slate-600">{formatPaymentMethodTypeLabel(method.method_type)}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{formatPaymentMethodSchedule(method)}</p>
-            </article>
-          ))}
-        </div>
+        <Table
+          head={["名前", "種別", "スケジュール", ""]}
+          rows={result.data.map((method) => [
+            method.name,
+            formatPaymentMethodTypeLabel(method.method_type),
+            formatPaymentMethodSchedule(method),
+            <div key={`payment-actions-${method.id}`} className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded border border-slate-300 px-1.5 py-0.5 text-xs hover:bg-slate-50"
+                onClick={() => setEditing(method)}
+              >
+                編集
+              </button>
+              <button
+                type="button"
+                className="rounded border border-rose-300 px-1.5 py-0.5 text-xs text-rose-700 hover:bg-rose-50"
+                onClick={() => onDelete(method)}
+              >
+                削除
+              </button>
+            </div>,
+          ])}
+          emptyMessage="支払方法が未登録"
+        />
       )}
-      {open && <PaymentMethodFormModal onClose={() => setOpen(false)} onCreated={handleCreated} />}
+      {actionError && <p className="mt-3 text-sm text-rose-700">{actionError}</p>}
+      {open && <PaymentMethodFormModal onClose={() => setOpen(false)} onSaved={handleSaved} />}
+      {editing && <PaymentMethodFormModal onClose={() => setEditing(null)} onSaved={handleSaved} initial={editing} />}
     </Panel>
   )
 }
@@ -235,37 +325,101 @@ function ExpenseMastersSection() {
   )
   const result = useFetch(loader)
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<ExpenseMaster | null>(null)
+  const [detail, setDetail] = useState<ExpenseMaster | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<"all" | "recurring" | "one_time">("all")
 
-  if (result.status === "loading") return <Loading label="支出マスタを読み込み中…" />
+  if (result.status === "loading") return <Loading label="支出を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
   const [expenses, minors, methods] = result.data
   const minorMap = buildMap(minors, (m) => m.id)
   const methodMap = buildMap(methods, (m) => m.id)
-  const handleCreated = () => {
+  const filteredExpenses = expenses.filter((row) => filter === "all" || row.expense_type === filter)
+  const handleSaved = () => {
     setOpen(false)
+    setEditing(null)
+    setActionError(null)
     result.refetch()
   }
 
+  const onDelete = async (row: ExpenseMaster) => {
+    if (!window.confirm("この支出を削除しますか？")) return
+    setActionError(null)
+    try {
+      await api.deleteExpense(row.id)
+      result.refetch()
+    } catch (err) {
+      setActionError(apiErrorMessage(err))
+    }
+  }
+
   return (
-    <Panel title="支出マスタ" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
+    <Panel title="支出" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
+      <TypeFilterTabs
+        current={filter}
+        onChange={setFilter}
+      />
       <Table
-        head={["カテゴリ", "種別", "支払方法", "開始月", "終了月"]}
-        rows={expenses.map((row) => [
+        head={["カテゴリ", "種別", "周期", "金額", "支払方法", "開始月", "終了月", ""]}
+        rows={filteredExpenses.map((row) => [
           formatCategory(minorMap.get(row.minor_category_id)),
           formatRecurringTypeLabel(row.expense_type),
+          formatExpenseCycleCell(row),
+          formatAmountCell(row.amount),
           methodMap.get(row.payment_method_id)?.name ?? "—",
-          row.start_month,
-          row.end_month ?? "—",
+          formatMonthCell(row.start_month),
+          row.end_month ? formatMonthCell(row.end_month) : "—",
+          <div key={`expense-actions-${row.id}`} className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
+              onClick={() => setDetail(row)}
+            >
+              詳細
+            </button>
+            <button
+              type="button"
+              className={`${actionButtonBaseClass} border-slate-300 text-slate-700 hover:bg-slate-50`}
+              onClick={() => setEditing(row)}
+            >
+              編集
+            </button>
+            <button
+              type="button"
+              className={`${actionButtonBaseClass} border-rose-300 text-rose-700 hover:bg-rose-50`}
+              onClick={() => onDelete(row)}
+            >
+              削除
+            </button>
+          </div>,
         ])}
-        emptyMessage="支出マスタが未登録"
+        emptyMessage="条件に一致する支出がありません"
       />
+      {actionError && <p className="mt-3 text-sm text-rose-700">{actionError}</p>}
       {open && (
         <ExpenseMasterFormModal
           onClose={() => setOpen(false)}
-          onCreated={handleCreated}
+          onSaved={handleSaved}
           minors={minors}
           paymentMethods={methods}
+        />
+      )}
+      {editing && (
+        <ExpenseMasterFormModal
+          onClose={() => setEditing(null)}
+          onSaved={handleSaved}
+          minors={minors}
+          paymentMethods={methods}
+          initial={editing}
+        />
+      )}
+      {detail && (
+        <MasterActualsModal
+          title={`支出実績: ${formatCategory(minorMap.get(detail.minor_category_id))}`}
+          loadActuals={() => api.expenseActuals(detail.id)}
+          onClose={() => setDetail(null)}
         />
       )}
     </Panel>
@@ -279,34 +433,96 @@ function IncomeMastersSection() {
   )
   const result = useFetch(loader)
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<IncomeMaster | null>(null)
+  const [detail, setDetail] = useState<IncomeMaster | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<"all" | "recurring" | "one_time">("all")
 
-  if (result.status === "loading") return <Loading label="収入マスタを読み込み中…" />
+  if (result.status === "loading") return <Loading label="収入を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
   const [incomes, minors] = result.data
   const minorMap = buildMap(minors, (m) => m.id)
-  const handleCreated = () => {
+  const filteredIncomes = incomes.filter((row) => filter === "all" || row.income_type === filter)
+  const handleSaved = () => {
     setOpen(false)
+    setEditing(null)
+    setActionError(null)
     result.refetch()
   }
 
+  const onDelete = async (row: IncomeMaster) => {
+    if (!window.confirm("この収入を削除しますか？")) return
+    setActionError(null)
+    try {
+      await api.deleteIncome(row.id)
+      result.refetch()
+    } catch (err) {
+      setActionError(apiErrorMessage(err))
+    }
+  }
+
   return (
-    <Panel title="収入マスタ" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
+    <Panel title="収入" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
+      <TypeFilterTabs
+        current={filter}
+        onChange={setFilter}
+      />
       <Table
-        head={["カテゴリ", "種別", "開始月", "終了月"]}
-        rows={incomes.map((row: IncomeMaster) => [
+        head={["カテゴリ", "種別", "金額", "開始月", "終了月", ""]}
+        rows={filteredIncomes.map((row: IncomeMaster) => [
           formatCategory(minorMap.get(row.minor_category_id)),
           formatRecurringTypeLabel(row.income_type),
-          row.start_month,
-          row.end_month ?? "—",
+          formatAmountCell(row.amount),
+          formatMonthCell(row.start_month),
+          row.end_month ? formatMonthCell(row.end_month) : "—",
+          <div key={`income-actions-${row.id}`} className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
+              onClick={() => setDetail(row)}
+            >
+              詳細
+            </button>
+            <button
+              type="button"
+              className={`${actionButtonBaseClass} border-slate-300 text-slate-700 hover:bg-slate-50`}
+              onClick={() => setEditing(row)}
+            >
+              編集
+            </button>
+            <button
+              type="button"
+              className={`${actionButtonBaseClass} border-rose-300 text-rose-700 hover:bg-rose-50`}
+              onClick={() => onDelete(row)}
+            >
+              削除
+            </button>
+          </div>,
         ])}
-        emptyMessage="収入マスタが未登録"
+        emptyMessage="条件に一致する収入がありません"
       />
+      {actionError && <p className="mt-3 text-sm text-rose-700">{actionError}</p>}
       {open && (
         <IncomeMasterFormModal
           onClose={() => setOpen(false)}
-          onCreated={handleCreated}
+          onSaved={handleSaved}
           minors={minors}
+        />
+      )}
+      {editing && (
+        <IncomeMasterFormModal
+          onClose={() => setEditing(null)}
+          onSaved={handleSaved}
+          minors={minors}
+          initial={editing}
+        />
+      )}
+      {detail && (
+        <MasterActualsModal
+          title={`収入実績: ${formatCategory(minorMap.get(detail.minor_category_id))}`}
+          loadActuals={() => api.incomeActuals(detail.id)}
+          onClose={() => setDetail(null)}
         />
       )}
     </Panel>
@@ -316,6 +532,67 @@ function IncomeMastersSection() {
 function formatCategory(minor: MinorCategory | undefined): string {
   if (!minor) return "—"
   return `${minor.major_category.name} / ${minor.name}`
+}
+
+function formatMonthCell(date: string): string {
+  return date.slice(0, 7).replace("-", "/")
+}
+
+function formatAmountCell(amount: string | number): string {
+  const n = typeof amount === "string" ? Number(amount) : amount
+  return Number.isFinite(n) ? `¥${n.toLocaleString("ja-JP")}` : "¥0"
+}
+
+function formatExpenseCycleCell(expense: ExpenseMaster): string {
+  if (expense.expense_type !== "recurring") return "—"
+  if (expense.recurring_cycle === "yearly") {
+    return `${formatRecurringCycleLabel("yearly")} (${expense.renewal_month ?? "?"}月)`
+  }
+  return formatRecurringCycleLabel("monthly")
+}
+
+function TypeFilterTabs({
+  current,
+  onChange,
+}: {
+  current: "all" | "recurring" | "one_time"
+  onChange: (value: "all" | "recurring" | "one_time") => void
+}) {
+  return (
+    <div className="mb-3 inline-flex rounded-full bg-slate-100 p-0.5 text-xs">
+      <FilterTab active={current === "all"} onClick={() => onChange("all")}>
+        全部
+      </FilterTab>
+      <FilterTab active={current === "recurring"} onClick={() => onChange("recurring")}>
+        定期
+      </FilterTab>
+      <FilterTab active={current === "one_time"} onClick={() => onChange("one_time")}>
+        単発
+      </FilterTab>
+    </div>
+  )
+}
+
+function FilterTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-1 transition-colors ${
+        active ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      {children}
+    </button>
+  )
 }
 
 function buildMap<T, K>(items: T[], keyOf: (item: T) => K): Map<K, T> {
@@ -362,7 +639,7 @@ function Table({
   emptyMessage = "データがありません",
 }: {
   head: string[]
-  rows: (string | number)[][]
+  rows: React.ReactNode[][]
   emptyMessage?: string
 }) {
   if (rows.length === 0) {
@@ -394,6 +671,32 @@ function Table({
         </tbody>
       </table>
     </div>
+  )
+}
+
+function MasterActualsModal({
+  title,
+  loadActuals,
+  onClose,
+}: {
+  title: string
+  loadActuals: () => Promise<MasterActual[]>
+  onClose: () => void
+}) {
+  const result = useFetch(loadActuals)
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      {result.status === "loading" && <p className="text-sm text-slate-500">実績を読み込み中…</p>}
+      {result.status === "error" && <p className="text-sm text-rose-700">{result.error.message}</p>}
+      {result.status === "success" && (
+        <Table
+          head={["月", "金額"]}
+          rows={result.data.map((row) => [formatMonthCell(row.month), formatAmountCell(row.amount)])}
+          emptyMessage="実績データがありません"
+        />
+      )}
+    </Modal>
   )
 }
 

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
 import {
   api,
+  type ExpenseMaster,
+  type RecurringCycleCode,
   type ExpenseTypeCode,
   type MinorCategory,
   type PaymentMethod,
@@ -10,39 +12,67 @@ import { FieldLabel, FormActions, FormError, Modal } from "./Modal.tsx"
 
 type Props = {
   onClose: () => void
-  onCreated: () => void
+  onSaved: () => void
   minors: MinorCategory[]
   paymentMethods: PaymentMethod[]
+  initial?: ExpenseMaster
 }
 
-export function ExpenseMasterFormModal({ onClose, onCreated, minors, paymentMethods }: Props) {
+export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethods, initial }: Props) {
   const expenseMinors = useMemo(
     () => minors.filter((m) => m.major_category.kind === "expense"),
     [minors],
   )
 
-  const [minorId, setMinorId] = useState<number | "">(expenseMinors[0]?.id ?? "")
-  const [paymentId, setPaymentId] = useState<number | "">(paymentMethods[0]?.id ?? "")
-  const [expenseType, setExpenseType] = useState<ExpenseTypeCode>("recurring")
-  const [startMonth, setStartMonth] = useState<string>(currentMonthInput())
-  const [endMonth, setEndMonth] = useState<string>("")
+  const [minorId, setMinorId] = useState<number | "">(initial?.minor_category_id ?? expenseMinors[0]?.id ?? "")
+  const [paymentId, setPaymentId] = useState<number | "">(initial?.payment_method_id ?? paymentMethods[0]?.id ?? "")
+  const [expenseType, setExpenseType] = useState<ExpenseTypeCode>(initial?.expense_type ?? "one_time")
+  const [recurringCycle, setRecurringCycle] = useState<RecurringCycleCode>(initial?.recurring_cycle ?? "monthly")
+  const [renewalMonth, setRenewalMonth] = useState<number | "">(initial?.renewal_month ?? "")
+  const [amount, setAmount] = useState<string>(initial?.amount != null ? String(initial.amount) : "")
+  const [paymentDate, setPaymentDate] = useState<string>(initial ? dateToDateInput(initial.start_month) : currentDateInput())
+  const [startMonth, setStartMonth] = useState<string>(initial ? dateToMonthInput(initial.start_month) : currentMonthInput())
+  const [endMonth, setEndMonth] = useState<string>(initial?.end_month ? dateToMonthInput(initial.end_month) : "")
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (minorId === "" || paymentId === "") return
+    const numericAmount = Number(amount)
+    if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+      setErrorMessage("金額は0以上で入力してください")
+      return
+    }
+    if (expenseType === "recurring" && recurringCycle === "yearly" && renewalMonth === "") {
+      setErrorMessage("年次の場合は更新月を選択してください")
+      return
+    }
     setSubmitting(true)
     setErrorMessage(null)
     try {
-      await api.createExpense({
+      const payload = {
         minor_category_id: Number(minorId),
         payment_method_id: Number(paymentId),
         expense_type: expenseType,
-        start_month: monthInputToDate(startMonth),
-        end_month: endMonth ? monthInputToDate(endMonth) : null,
-      })
-      onCreated()
+        recurring_cycle: expenseType === "recurring" ? recurringCycle : "monthly",
+        renewal_month: expenseType === "recurring" && recurringCycle === "yearly" ? Number(renewalMonth) : null,
+        amount: Math.round(numericAmount),
+        start_month:
+          expenseType === "one_time"
+            ? dateInputToMonthDate(paymentDate)
+            : monthInputToDate(startMonth),
+        end_month:
+          expenseType === "one_time"
+            ? null
+            : (endMonth ? monthInputToDate(endMonth) : null),
+      }
+      if (initial) {
+        await api.updateExpense(initial.id, payload)
+      } else {
+        await api.createExpense(payload)
+      }
+      onSaved()
     } catch (err) {
       setErrorMessage(apiErrorMessage(err))
     } finally {
@@ -51,7 +81,7 @@ export function ExpenseMasterFormModal({ onClose, onCreated, minors, paymentMeth
   }
 
   return (
-    <Modal title="支出マスタを追加" onClose={onClose}>
+    <Modal title={initial ? "支出を編集" : "支出を追加"} onClose={onClose}>
       <form className="space-y-3" onSubmit={onSubmit}>
         <FormError message={errorMessage} />
         <label className="block text-sm">
@@ -90,38 +120,111 @@ export function ExpenseMasterFormModal({ onClose, onCreated, minors, paymentMeth
           <FieldLabel>種別</FieldLabel>
           <select
             value={expenseType}
-            onChange={(e) => setExpenseType(e.target.value as ExpenseTypeCode)}
+            onChange={(e) => {
+              const next = e.target.value as ExpenseTypeCode
+              setExpenseType(next)
+              if (next === "one_time") {
+                setRecurringCycle("monthly")
+                setRenewalMonth("")
+              }
+            }}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="recurring">定期</option>
             <option value="one_time">単発</option>
           </select>
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        {expenseType === "recurring" && (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <FieldLabel>定期の周期</FieldLabel>
+              <select
+                value={recurringCycle}
+                onChange={(e) => {
+                  const next = e.target.value as RecurringCycleCode
+                  setRecurringCycle(next)
+                  if (next === "monthly") setRenewalMonth("")
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="monthly">月次</option>
+                <option value="yearly">年次</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              <FieldLabel>更新月（年次のみ）</FieldLabel>
+              <select
+                value={renewalMonth}
+                onChange={(e) => setRenewalMonth(e.target.value === "" ? "" : Number(e.target.value))}
+                disabled={recurringCycle !== "yearly"}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+              >
+                <option value="">未設定</option>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {m}月
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <label className="block text-sm">
+          <FieldLabel>金額</FieldLabel>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="例: 30000"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            required
+          />
+        </label>
+        {expenseType === "one_time" ? (
           <label className="block text-sm">
-            <FieldLabel>開始月</FieldLabel>
+            <FieldLabel>支払日</FieldLabel>
             <input
-              type="month"
-              value={startMonth}
-              onChange={(e) => setStartMonth(e.target.value)}
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               required
             />
           </label>
-          <label className="block text-sm">
-            <FieldLabel>終了月（任意）</FieldLabel>
-            <input
-              type="month"
-              value={endMonth}
-              onChange={(e) => setEndMonth(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-          </label>
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <FieldLabel>開始月</FieldLabel>
+              <input
+                type="month"
+                value={startMonth}
+                onChange={(e) => setStartMonth(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                required
+              />
+            </label>
+            <label className="block text-sm">
+              <FieldLabel>終了月（任意）</FieldLabel>
+              <input
+                type="month"
+                value={endMonth}
+                onChange={(e) => setEndMonth(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+        )}
         <FormActions
           onCancel={onClose}
           submitting={submitting}
-          disabled={minorId === "" || paymentId === "" || !startMonth}
+          disabled={
+            minorId === "" ||
+            paymentId === "" ||
+            amount === "" ||
+            (expenseType === "one_time" ? !paymentDate : !startMonth)
+          }
         />
       </form>
     </Modal>
@@ -133,6 +236,26 @@ function currentMonthInput(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
 
+function currentDateInput(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, "0")
+  const d = String(now.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
 function monthInputToDate(value: string): string {
   return `${value}-01`
+}
+
+function dateToMonthInput(value: string): string {
+  return value.slice(0, 7)
+}
+
+function dateToDateInput(value: string): string {
+  return value.slice(0, 10)
+}
+
+function dateInputToMonthDate(value: string): string {
+  return `${value.slice(0, 7)}-01`
 }

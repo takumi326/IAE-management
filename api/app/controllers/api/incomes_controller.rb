@@ -1,10 +1,12 @@
 module Api
   class IncomesController < ApplicationController
-    before_action :set_income, only: [ :update, :destroy ]
-    before_action :ensure_income!, only: [ :update, :destroy ]
+    before_action :set_income, only: [ :update, :destroy, :actuals ]
+    before_action :ensure_income!, only: [ :update, :destroy, :actuals ]
 
     def index
-      incomes = Income.preload(:minor_category).order(:id)
+      incomes = Income.joins(:minor_category)
+                      .preload(:minor_category)
+                      .order(Arel.sql("minor_categories.name ASC, incomes.id ASC"))
       render json: { data: incomes.map { |i| income_json(i) } }
     end
 
@@ -30,6 +32,23 @@ module Api
       head :no_content
     end
 
+    def actuals
+      rows = @income.income_transactions
+                    .joins(:ledger_transaction)
+                    .includes(:ledger_transaction)
+                    .order(Arel.sql("transactions.month ASC, income_transactions.id ASC"))
+      render json: {
+        data: rows.map do |row|
+          tx = row.ledger_transaction
+          {
+            transaction_id: tx.id,
+            month: tx.month,
+            amount: tx.amount
+          }
+        end
+      }
+    end
+
     private
 
     def set_income
@@ -43,11 +62,11 @@ module Api
     end
 
     def income_params
-      params.expect(income: [ :minor_category_id, :income_type, :start_month, :end_month ])
+      params.expect(income: [ :minor_category_id, :income_type, :amount, :start_month, :end_month ])
     end
 
     def income_json(income)
-      income.as_json(only: [ :id, :minor_category_id, :income_type, :start_month, :end_month ])
+      income.as_json(only: [ :id, :minor_category_id, :income_type, :amount, :start_month, :end_month ])
     end
 
     def render_validation_error(income)
