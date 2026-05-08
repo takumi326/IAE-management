@@ -11,6 +11,7 @@ const navItems = [
   { to: "/masters", label: "支出・収入" },
   { to: "/settings", label: "設定" },
 ]
+const IS_DEV = import.meta.env.DEV
 
 type InitialAuth = {
   status: "loading" | "authenticated" | "guest"
@@ -22,17 +23,21 @@ const INITIAL_AUTH: InitialAuth = resolveInitialAuth()
 
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "guest">(INITIAL_AUTH.status)
+  const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "guest">(
+    IS_DEV ? "authenticated" : INITIAL_AUTH.status,
+  )
   const [authError] = useState<string | null>(INITIAL_AUTH.error)
   const closeDrawer = () => setDrawerOpen(false)
 
   useEffect(() => {
+    if (IS_DEV) return
     if (INITIAL_AUTH.hasAuthCallbackParam) {
       window.history.replaceState({}, "", window.location.pathname)
     }
   }, [])
 
   useEffect(() => {
+    if (IS_DEV) return
     if (authStatus !== "loading") return
     api.me()
       .then(() => setAuthStatus("authenticated"))
