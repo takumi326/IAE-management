@@ -84,6 +84,7 @@ async function parseError(response: Response): Promise<ApiError> {
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
+    credentials: "include",
     ...init,
     headers: {
       Accept: "application/json",
@@ -204,8 +205,14 @@ export type MonthlyBalance = {
   month: string
   amount: string | number
 }
+export type AuthUser = {
+  email: string
+}
 
 export const api = {
+  me: () => fetchJson<AuthUser>("/api/auth/me"),
+  signOut: () => deleteJson("/api/auth/logout"),
+
   majorCategories: () => fetchJson<MajorCategory[]>("/api/categories/majors"),
   minorCategories: () => fetchJson<MinorCategory[]>("/api/categories/minors"),
   paymentMethods: () => fetchJson<PaymentMethod[]>("/api/payment_methods"),
@@ -253,5 +260,4 @@ export const api = {
   monthlyBalances: (month: string) => fetchJson<MonthlyBalance[]>(`/api/monthly_balances?month=${encodeURIComponent(month)}`),
   upsertMonthlyBalance: (input: { month: string; amount: number }) =>
     postJson<MonthlyBalance>("/api/monthly_balances/upsert", { monthly_balance: input }),
-  signOut: () => deleteJson("/api/session"),
 }

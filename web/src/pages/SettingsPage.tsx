@@ -11,6 +11,7 @@ export function SettingsPage() {
     setErrorMessage(null)
     try {
       await api.signOut()
+      window.location.reload()
     } catch (error) {
       setErrorMessage(apiErrorMessage(error))
     } finally {

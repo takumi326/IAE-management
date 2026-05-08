@@ -38,3 +38,34 @@ PostgreSQL から移行した場合や DB を作り直すときは `docker compo
 ```bash
 docker compose run --rm api bash -lc "cd /app/api && bundle exec ridgepole -c config/database.yml -E development --apply -f db/Schemafile && bundle exec rails db:seed"
 ```
+
+## Login
+
+- Google OAuth (`omniauth-google-oauth2`) を使ってログインします。
+- 認証後は API のセッション (Cookie) でログイン状態を保持します。
+
+最低限必要な環境変数:
+
+```bash
+GOOGLE_OAUTH_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-google-client-secret
+WEB_APP_ORIGIN=http://localhost:5173
+```
+
+ログイン許可は `users` テーブルの email で制御します。  
+初期ユーザーは seed で作成されます（デフォルト: `admin@example.com`）。
+
+```bash
+SEED_LOGIN_EMAILS=admin@example.com,foo@example.com
+```
+
+## Production / CD
+
+- `main` への push で `.github/workflows/cd.yml` が実行され、API/Web の Docker イメージを GHCR (`ghcr.io/<owner>/<repo>`) に push します。
+- デプロイを自動化する場合は、次の GitHub Secrets を設定してください。
+  - `DEPLOY_HOST`
+  - `DEPLOY_USER`
+  - `DEPLOY_SSH_KEY`
+  - `DEPLOY_PORT` (任意)
+  - `DEPLOY_APP_DIR` (サーバー上で `docker compose` を実行するディレクトリ)
+- API 本番では必要に応じて `ALLOWED_HOSTS` / `CORS_ORIGINS` を設定してください（カンマ区切り）。
