@@ -13,8 +13,7 @@ module Api
       if income.save
         render json: { data: income_json(income) }, status: :created
       else
-        render json: { error: { code: "validation_error", message: "Invalid income params", details: income.errors } },
-               status: :unprocessable_entity
+        render_validation_error(income)
       end
     end
 
@@ -22,17 +21,13 @@ module Api
       if @income.update(income_params)
         render json: { data: income_json(@income) }
       else
-        render json: { error: { code: "validation_error", message: "Invalid income params", details: @income.errors } },
-               status: :unprocessable_entity
+        render_validation_error(@income)
       end
     end
 
     def destroy
-      if @income.destroy
-        head :no_content
-      else
-        render json: { error: { code: "conflict", message: "Income is referenced by transactions" } }, status: :conflict
-      end
+      @income.destroy!
+      head :no_content
     end
 
     private
@@ -53,6 +48,11 @@ module Api
 
     def income_json(income)
       income.as_json(only: [ :id, :minor_category_id, :income_type, :start_month, :end_month ])
+    end
+
+    def render_validation_error(income)
+      render json: { error: { code: "validation_error", message: "Invalid income params", details: income.errors } },
+             status: :unprocessable_entity
     end
   end
 end

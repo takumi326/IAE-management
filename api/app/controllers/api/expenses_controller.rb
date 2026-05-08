@@ -13,8 +13,7 @@ module Api
       if expense.save
         render json: { data: expense_json(expense) }, status: :created
       else
-        render json: { error: { code: "validation_error", message: "Invalid expense params", details: expense.errors } },
-               status: :unprocessable_entity
+        render_validation_error(expense)
       end
     end
 
@@ -22,17 +21,13 @@ module Api
       if @expense.update(expense_params)
         render json: { data: expense_json(@expense) }
       else
-        render json: { error: { code: "validation_error", message: "Invalid expense params", details: @expense.errors } },
-               status: :unprocessable_entity
+        render_validation_error(@expense)
       end
     end
 
     def destroy
-      if @expense.destroy
-        head :no_content
-      else
-        render json: { error: { code: "conflict", message: "Expense is referenced by transactions" } }, status: :conflict
-      end
+      @expense.destroy!
+      head :no_content
     end
 
     private
@@ -53,6 +48,11 @@ module Api
 
     def expense_json(expense)
       expense.as_json(only: [ :id, :minor_category_id, :payment_method_id, :expense_type, :start_month, :end_month ])
+    end
+
+    def render_validation_error(expense)
+      render json: { error: { code: "validation_error", message: "Invalid expense params", details: expense.errors } },
+             status: :unprocessable_entity
     end
   end
 end

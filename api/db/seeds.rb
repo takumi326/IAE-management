@@ -9,11 +9,11 @@ income_majors.each do |name|
 end
 
 {
-  "食費" => [ "外食", "出前館", "UberEats" ],
+  "食費" => [ "外食", "出前館", "ウーバーイーツ" ],
   "ソシャゲ" => [ "崩壊スターレイル", "鳴潮", "ゼンレスゾーンゼロ", "アークナイツ", "エンドフィールド" ],
-  "雑費" => [ "Amazon", "UCC（コーヒー）", "宝くじ", "Amazon Prime", "PC保証", "Google Playカード" ],
-  "サブスク" => [ "LINE", "Note（グリーンさん）", "Google Storage", "Claude", "エニタイム", "YouTube" ],
-  "ゲーム" => [ "Steam" ]
+  "雑費" => [ "アマゾン", "UCC（コーヒー）", "宝くじ", "アマゾンプライム", "PC保証", "グーグルプレイカード" ],
+  "サブスク" => [ "Line", "Note（グリーンさん）", "Google Storage", "Claude", "エニタイム", "YouTube Premium" ],
+  "ゲーム" => [ "Steam", "PlayStation", "任天堂" ]
 }.each do |major_name, minors|
   major = MajorCategory.find_by!(kind: :expense, name: major_name)
   minors.each do |minor_name|
@@ -27,5 +27,17 @@ end
   major = MajorCategory.find_by!(kind: :income, name: major_name)
   minors.each do |minor_name|
     MinorCategory.find_or_create_by!(major_category: major, name: minor_name)
+  end
+end
+
+[
+  { name: "楽天カード", method_type: "card", closing_day: nil, debit_day: 27 },
+  { name: "みずほ口座引落", method_type: "bank_debit", closing_day: nil, debit_day: 26 },
+  { name: "ATM引き出し", method_type: "bank_withdrawal", closing_day: nil, debit_day: nil }
+].each do |attrs|
+  PaymentMethod.find_or_create_by!(name: attrs[:name]) do |pm|
+    pm.method_type = attrs[:method_type]
+    pm.closing_day = attrs[:closing_day]
+    pm.debit_day = attrs[:debit_day]
   end
 end

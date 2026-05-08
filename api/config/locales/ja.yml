@@ -6,10 +6,6 @@ ja:
       kind:
         expense: "支出"
         income: "収入"
-    forecast:
-      kind:
-        expense: "支出"
-        income: "収入"
     expense:
       expense_type:
         one_time: "単発"
@@ -18,6 +14,10 @@ ja:
       income_type:
         one_time: "単発"
         recurring: "定期"
+    forecast:
+      kind:
+        expense: "支出"
+        income: "収入"
 
   activerecord:
     models:
@@ -25,10 +25,10 @@ ja:
       minor_category: "小カテゴリ"
       expense: "支出"
       income: "収入"
-      forecast: "予測"
       transaction: "取引"
       payment_method: "支払方法"
       monthly_balance: "月末残高"
+      forecast: "予測"
     attributes:
       major_category:
         kind: "種別"
@@ -44,3 +44,10 @@ ja:
         income_type: "収入タイプ"
         start_month: "開始月"
         end_month: "終了月"
+      forecast:
+        kind: "種別"
+        month: "対象月"
+        amount: "金額"
+      payment_method:
+        closing_day: "締め日（未入力は月末締め）"
+        debit_day: "引き落とし日"

@@ -1,0 +1,193 @@
+export type CategoryKind = "expense" | "income"
+export type ExpenseTypeCode = "one_time" | "recurring"
+export type IncomeTypeCode = "one_time" | "recurring"
+export type PaymentMethodType = "card" | "bank_debit" | "bank_withdrawal"
+
+export type MajorCategory = {
+  id: number
+  kind: CategoryKind
+  name: string
+}
+
+export type MinorCategory = {
+  id: number
+  name: string
+  major_category: MajorCategory
+}
+
+export type PaymentMethod = {
+  id: number
+  name: string
+  method_type: PaymentMethodType
+  /** 締め日（1–31）。クレカのみ。未設定は月末締め */
+  closing_day: number | null
+  /** 引落日（1–31）。クレカは翌月・口座引落は当月想定 */
+  debit_day: number | null
+}
+
+export type ExpenseMaster = {
+  id: number
+  minor_category_id: number
+  payment_method_id: number
+  expense_type: ExpenseTypeCode
+  start_month: string
+  end_month: string | null
+}
+
+export type IncomeMaster = {
+  id: number
+  minor_category_id: number
+  income_type: IncomeTypeCode
+  start_month: string
+  end_month: string | null
+}
+
+export type Forecast = {
+  id: number
+  kind: CategoryKind
+  month: string
+  amount: string | number
+}
+
+export type ApiErrorBody = {
+  error?: {
+    code?: string
+    message?: string
+    details?: Record<string, string[] | string>
+  }
+}
+
+export class ApiError extends Error {
+  status: number
+  details?: Record<string, string[] | string>
+
+  constructor(status: number, message: string, details?: Record<string, string[] | string>) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+    this.details = details
+  }
+}
+
+type Envelope<T> = { data: T }
+
+async function parseError(response: Response): Promise<ApiError> {
+  const body = await response.json().catch((): ApiErrorBody | null => null)
+  const message = body?.error?.message ?? `${response.status} ${response.statusText}`
+  return new ApiError(response.status, message, body?.error?.details)
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      Accept: "application/json",
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(init?.headers ?? {}),
+    },
+  })
+  if (!response.ok) {
+    throw await parseError(response)
+  }
+  if (response.status === 204) {
+    return undefined as T
+  }
+  const body = (await response.json()) as Envelope<T>
+  return body.data
+}
+
+function postJson<T>(path: string, body: unknown): Promise<T> {
+  return fetchJson<T>(path, { method: "POST", body: JSON.stringify(body) })
+}
+
+function patchJson<T>(path: string, body: unknown): Promise<T> {
+  return fetchJson<T>(path, { method: "PATCH", body: JSON.stringify(body) })
+}
+
+function deleteJson(path: string): Promise<void> {
+  return fetchJson<void>(path, { method: "DELETE" })
+}
+
+export type CreateMajorCategoryInput = {
+  kind: CategoryKind
+  name: string
+}
+
+export type CreateMinorCategoryInput = {
+  major_category_id: number
+  name: string
+}
+
+export type UpdateMajorCategoryInput = {
+  kind: CategoryKind
+  name: string
+}
+
+export type UpdateMinorCategoryInput = {
+  major_category_id: number
+  name: string
+}
+
+export type CreatePaymentMethodInput = {
+  name: string
+  method_type: PaymentMethodType
+  closing_day?: number | null
+  debit_day?: number | null
+}
+
+export type ExpenseMasterInput = {
+  minor_category_id: number
+  payment_method_id: number
+  expense_type: ExpenseTypeCode
+  start_month: string
+  end_month?: string | null
+}
+
+export type IncomeMasterInput = {
+  minor_category_id: number
+  income_type: IncomeTypeCode
+  start_month: string
+  end_month?: string | null
+}
+
+export type UpsertForecastInput = {
+  kind: CategoryKind
+  month: string
+  amount: number
+}
+
+export const api = {
+  majorCategories: () => fetchJson<MajorCategory[]>("/api/categories/majors"),
+  minorCategories: () => fetchJson<MinorCategory[]>("/api/categories/minors"),
+  paymentMethods: () => fetchJson<PaymentMethod[]>("/api/payment_methods"),
+  expenses: () => fetchJson<ExpenseMaster[]>("/api/expenses"),
+  incomes: () => fetchJson<IncomeMaster[]>("/api/incomes"),
+  forecasts: () => fetchJson<Forecast[]>("/api/forecasts"),
+
+  createMajorCategory: (input: CreateMajorCategoryInput) =>
+    postJson<MajorCategory>("/api/categories/majors", { major_category: input }),
+  createMinorCategory: (input: CreateMinorCategoryInput) =>
+    postJson<MinorCategory>("/api/categories/minors", { minor_category: input }),
+  updateMajorCategory: (id: number, input: UpdateMajorCategoryInput) =>
+    patchJson<MajorCategory>(`/api/categories/majors/${id}`, { major_category: input }),
+  updateMinorCategory: (id: number, input: UpdateMinorCategoryInput) =>
+    patchJson<MinorCategory>(`/api/categories/minors/${id}`, { minor_category: input }),
+
+  createPaymentMethod: (input: CreatePaymentMethodInput) =>
+    postJson<PaymentMethod>("/api/payment_methods", { payment_method: input }),
+
+  createExpense: (input: ExpenseMasterInput) =>
+    postJson<ExpenseMaster>("/api/expenses", { expense: input }),
+  updateExpense: (id: number, input: Partial<ExpenseMasterInput>) =>
+    patchJson<ExpenseMaster>(`/api/expenses/${id}`, { expense: input }),
+  deleteExpense: (id: number) => deleteJson(`/api/expenses/${id}`),
+
+  createIncome: (input: IncomeMasterInput) =>
+    postJson<IncomeMaster>("/api/incomes", { income: input }),
+  updateIncome: (id: number, input: Partial<IncomeMasterInput>) =>
+    patchJson<IncomeMaster>(`/api/incomes/${id}`, { income: input }),
+  deleteIncome: (id: number) => deleteJson(`/api/incomes/${id}`),
+
+  upsertForecast: (input: UpsertForecastInput) =>
+    postJson<Forecast>("/api/forecasts/upsert", { forecast: input }),
+}

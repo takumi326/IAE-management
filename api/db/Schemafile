@@ -17,7 +17,9 @@ end
 
 create_table "payment_methods", force: :cascade do |t|
   t.string "name", limit: 100, null: false
-  t.string "method_type", limit: 20, null: false
+  t.string "method_type", limit: 20, null: false, default: "card"
+  t.integer "closing_day"
+  t.integer "debit_day"
   t.datetime "created_at", null: false
   t.datetime "updated_at", null: false
   t.index [ "name" ], name: "index_payment_methods_on_name", unique: true
@@ -106,5 +108,7 @@ add_foreign_key "income_transactions", "transactions"
 add_check_constraint "major_categories", "kind IN (0, 1)", name: "major_categories_kind_check"
 add_check_constraint "expenses", "expense_type IN (0, 1)", name: "expenses_expense_type_check"
 add_check_constraint "incomes", "income_type IN (0, 1)", name: "incomes_income_type_check"
-add_check_constraint "payment_methods", "method_type IN ('card', 'bank_debit')", name: "payment_methods_method_type_check"
+add_check_constraint "payment_methods", "method_type IN ('card', 'bank_debit', 'bank_withdrawal')", name: "payment_methods_method_type_check"
+add_check_constraint "payment_methods", "closing_day IS NULL OR (closing_day >= 1 AND closing_day <= 31)", name: "payment_methods_closing_day_check"
+add_check_constraint "payment_methods", "debit_day IS NULL OR (debit_day >= 1 AND debit_day <= 31)", name: "payment_methods_debit_day_check"
 add_check_constraint "forecasts", "kind IN (0, 1)", name: "forecasts_kind_check"

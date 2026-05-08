@@ -1,0 +1,80 @@
+import { useEffect, type ReactNode } from "react"
+
+type Props = {
+  title: string
+  onClose: () => void
+  children: ReactNode
+  size?: "sm" | "md"
+}
+
+export function Modal({ title, onClose, children, size = "md" }: Props) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className={`w-full ${size === "sm" ? "max-w-sm" : "max-w-xl"} rounded-2xl bg-white p-5 shadow-xl`}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button type="button" className="text-slate-400 hover:text-slate-600" onClick={onClose} aria-label="閉じる">
+            ×
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export function FormError({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <div className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{message}</div>
+  )
+}
+
+export function FieldLabel({ children }: { children: ReactNode }) {
+  return <span className="text-slate-600">{children}</span>
+}
+
+export function FormActions({
+  onCancel,
+  submitLabel = "保存",
+  submitting = false,
+  disabled = false,
+}: {
+  onCancel: () => void
+  submitLabel?: string
+  submitting?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex justify-end gap-2 pt-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+        disabled={submitting}
+      >
+        キャンセル
+      </button>
+      <button
+        type="submit"
+        disabled={disabled || submitting}
+        className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {submitting ? "保存中…" : submitLabel}
+      </button>
+    </div>
+  )
+}
