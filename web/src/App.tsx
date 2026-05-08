@@ -1,5 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { NavLink, Route, Routes } from "react-router-dom"
+import { api } from "./lib/api.ts"
+import { LoginPage } from "./pages/LoginPage.tsx"
 import { DashboardPage } from "./pages/DashboardPage.tsx"
 import { MastersPage } from "./pages/MastersPage.tsx"
 import { SettingsPage } from "./pages/SettingsPage.tsx"
@@ -9,10 +11,50 @@ const navItems = [
   { to: "/masters", label: "支出・収入" },
   { to: "/settings", label: "設定" },
 ]
+const IS_DEV = import.meta.env.DEV
+
+type InitialAuth = {
+  status: "loading" | "authenticated" | "guest"
+  error: string | null
+  hasAuthCallbackParam: boolean
+}
+
+const INITIAL_AUTH: InitialAuth = resolveInitialAuth()
 
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "guest">(
+    IS_DEV ? "authenticated" : INITIAL_AUTH.status,
+  )
+  const [authError] = useState<string | null>(INITIAL_AUTH.error)
   const closeDrawer = () => setDrawerOpen(false)
+
+  useEffect(() => {
+    if (IS_DEV) return
+    if (INITIAL_AUTH.hasAuthCallbackParam) {
+      window.history.replaceState({}, "", window.location.pathname)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (IS_DEV) return
+    if (authStatus !== "loading") return
+    api.me()
+      .then(() => setAuthStatus("authenticated"))
+      .catch(() => setAuthStatus("guest"))
+  }, [authStatus])
+
+  if (authStatus === "loading") {
+    return (
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center p-6 text-slate-600">
+        認証を確認中…
+      </div>
+    )
+  }
+
+  if (authStatus === "guest") {
+    return <LoginPage errorMessage={authError ?? undefined} />
+  }
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-7xl p-4 text-slate-800 sm:p-6">
@@ -99,4 +141,27 @@ function SidebarNav({ onNavigate }: { onNavigate: () => void }) {
       ))}
     </nav>
   )
+}
+
+function resolveInitialAuth(): InitialAuth {
+  if (typeof window === "undefined") {
+    return { status: "loading", error: null, hasAuthCallbackParam: false }
+  }
+  const query = new URLSearchParams(window.location.search)
+  const callbackError = query.get("auth_error")
+  if (callbackError) {
+    const errorMessage = callbackError === "not_allowed"
+      ? "このGoogleアカウントは許可されていません"
+      : "Google OAuth 認証に失敗しました"
+    return {
+      status: "loading",
+      error: errorMessage,
+      hasAuthCallbackParam: true,
+    }
+  }
+  return {
+    status: "loading",
+    error: null,
+    hasAuthCallbackParam: false,
+  }
 }

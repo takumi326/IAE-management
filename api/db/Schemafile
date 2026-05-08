@@ -100,6 +100,13 @@ create_table "monthly_balances", force: :cascade do |t|
   t.index [ "month" ], name: "index_monthly_balances_on_month", unique: true
 end
 
+create_table "users", force: :cascade do |t|
+  t.string "email", limit: 255, null: false
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+  t.index [ "email" ], name: "index_users_on_email", unique: true
+end
+
 add_foreign_key "expenses", "payment_methods"
 add_foreign_key "minor_categories", "major_categories"
 add_foreign_key "expenses", "minor_categories"

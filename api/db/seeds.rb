@@ -42,6 +42,15 @@ end
   end
 end
 
+# OAuthログイン許可ユーザー（users.email に存在する必要あり）
+seed_login_emails = ENV.fetch("SEED_LOGIN_EMAILS", "")
+                       .split(",")
+                       .map(&:strip)
+                       .reject(&:blank?)
+seed_login_emails.each do |email|
+  User.find_or_create_by!(email: email)
+end
+
 today = Date.current
 fiscal_year_start_year = today.month >= 4 ? today.year : today.year - 1
 fiscal_start = Date.new(fiscal_year_start_year, 4, 1)
