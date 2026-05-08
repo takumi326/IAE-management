@@ -6,8 +6,6 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   namespace :api do
-    match "auth/:provider/callback", to: "auth#google_callback", via: %i[get post]
-    get "auth/failure", to: "auth#failure"
     get "auth/me", to: "auth#me"
     delete "auth/logout", to: "auth#logout"
 

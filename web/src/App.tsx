@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { NavLink, Route, Routes } from "react-router-dom"
 import { api } from "./lib/api.ts"
+import { isSupabaseConfigured, supabase } from "./lib/supabase.ts"
 import { LoginPage } from "./pages/LoginPage.tsx"
 import { DashboardPage } from "./pages/DashboardPage.tsx"
 import { MastersPage } from "./pages/MastersPage.tsx"
@@ -16,7 +17,6 @@ const IS_DEV = import.meta.env.DEV
 type InitialAuth = {
   status: "loading" | "authenticated" | "guest"
   error: string | null
-  hasAuthCallbackParam: boolean
 }
 
 const INITIAL_AUTH: InitialAuth = resolveInitialAuth()
@@ -31,18 +31,37 @@ export default function App() {
 
   useEffect(() => {
     if (IS_DEV) return
-    if (INITIAL_AUTH.hasAuthCallbackParam) {
-      window.history.replaceState({}, "", window.location.pathname)
+    if (!isSupabaseConfigured || !supabase) return
+    const client = supabase
+
+    let active = true
+    const verify = async () => {
+      try {
+        const { data } = await client.auth.getSession()
+        if (!active) return
+        if (!data.session?.access_token) {
+          setAuthStatus("guest")
+          return
+        }
+        await api.me()
+        if (!active) return
+        setAuthStatus("authenticated")
+      } catch {
+        if (!active) return
+        setAuthStatus("guest")
+      }
+    }
+
+    void verify()
+    const { data: listener } = client.auth.onAuthStateChange(() => {
+      void verify()
+    })
+
+    return () => {
+      active = false
+      listener.subscription.unsubscribe()
     }
   }, [])
-
-  useEffect(() => {
-    if (IS_DEV) return
-    if (authStatus !== "loading") return
-    api.me()
-      .then(() => setAuthStatus("authenticated"))
-      .catch(() => setAuthStatus("guest"))
-  }, [authStatus])
 
   if (authStatus === "loading") {
     return (
@@ -144,24 +163,15 @@ function SidebarNav({ onNavigate }: { onNavigate: () => void }) {
 }
 
 function resolveInitialAuth(): InitialAuth {
-  if (typeof window === "undefined") {
-    return { status: "loading", error: null, hasAuthCallbackParam: false }
-  }
-  const query = new URLSearchParams(window.location.search)
-  const callbackError = query.get("auth_error")
-  if (callbackError) {
-    const errorMessage = callbackError === "not_allowed"
-      ? "このGoogleアカウントは許可されていません"
-      : "Google OAuth 認証に失敗しました"
+  if (!IS_DEV && !isSupabaseConfigured) {
     return {
-      status: "loading",
-      error: errorMessage,
-      hasAuthCallbackParam: true,
+      status: "guest",
+      error: "Supabase の設定が不足しています",
     }
   }
+
   return {
     status: "loading",
     error: null,
-    hasAuthCallbackParam: false,
   }
 }

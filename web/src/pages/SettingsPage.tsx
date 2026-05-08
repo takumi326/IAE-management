@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { api } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
+import { supabase } from "../lib/supabase.ts"
 
 export function SettingsPage() {
   const [signingOut, setSigningOut] = useState(false)
@@ -10,7 +11,10 @@ export function SettingsPage() {
     setSigningOut(true)
     setErrorMessage(null)
     try {
-      await api.signOut()
+      await Promise.all([
+        api.signOut(),
+        supabase?.auth.signOut(),
+      ])
       window.location.reload()
     } catch (error) {
       setErrorMessage(apiErrorMessage(error))
