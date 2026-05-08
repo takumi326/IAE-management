@@ -24,12 +24,12 @@ type ForecastTarget = {
 }
 
 export function DashboardPage() {
-  const [month, setMonth] = useState(toMonthInput(Date.now()))
+  const [month, setMonth] = useState(INITIAL_MONTH_INPUT)
   const [actualEditorOpen, setActualEditorOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [forecastTarget, setForecastTarget] = useState<ForecastTarget | null>(null)
   const [bulkEditorOpen, setBulkEditorOpen] = useState(false)
-  const [monthEndBalanceInput, setMonthEndBalanceInput] = useState("")
+  const [monthEndBalanceDraft, setMonthEndBalanceDraft] = useState<string | null>(null)
   const [monthEndSaving, setMonthEndSaving] = useState(false)
   const [monthEndError, setMonthEndError] = useState<string | null>(null)
 
@@ -39,6 +39,10 @@ export function DashboardPage() {
 
   const openForecast = (target: ForecastTarget) => setForecastTarget(target)
   const closeForecast = () => setForecastTarget(null)
+  const setMonthWithReset = (nextMonth: string) => {
+    setMonth(nextMonth)
+    setMonthEndBalanceDraft(null)
+  }
   const onForecastSaved = () => {
     closeForecast()
     forecastState.refetch()
@@ -48,30 +52,33 @@ export function DashboardPage() {
     void api.syncActuals()
   }, [])
 
-  useEffect(() => {
-    if (dashboardState.status !== "success") return
-    const amount = toNumber(dashboardState.data.monthly_balance)
-    setMonthEndBalanceInput(String(amount))
-  }, [dashboardState.status, dashboardState.status === "success" ? dashboardState.data.monthly_balance : null])
+  const fetchedMonthEndBalanceInput =
+    dashboardState.status === "success"
+      ? String(toNumber(dashboardState.data.monthly_balance))
+      : ""
+  const monthEndBalanceInput = monthEndBalanceDraft ?? fetchedMonthEndBalanceInput
 
   const selectedMonth = monthInputToDate(month)
   const fiscalMonths = useMemo(() => buildFiscalMonths(selectedMonth), [selectedMonth])
   const forecastsByKey = useMemo(() => toForecastMap(forecastState.status === "success" ? forecastState.data : []), [forecastState])
 
-  const yearlySummary: MonthSummary[] = useMemo(() => {
-    let runningBalance = 0
-    return fiscalMonths.map((m) => {
-      const income = forecastsByKey.get(keyOf("income", m)) ?? 0
-      const expense = forecastsByKey.get(keyOf("expense", m)) ?? 0
-      runningBalance += income - expense
-      return {
-        month: dateToRowMonth(m),
-        income: { amount: income, mode: "予" as const },
-        expense: { amount: expense, mode: "予" as const },
-        balance: { amount: runningBalance, mode: "予" as const },
-      }
-    })
-  }, [fiscalMonths, forecastsByKey])
+  const yearlySummary: MonthSummary[] = useMemo(
+    () =>
+      fiscalMonths.reduce<MonthSummary[]>((rows, m) => {
+        const income = forecastsByKey.get(keyOf("income", m)) ?? 0
+        const expense = forecastsByKey.get(keyOf("expense", m)) ?? 0
+        const previousBalance = rows.length > 0 ? rows[rows.length - 1].balance.amount : 0
+        const nextBalance = previousBalance + income - expense
+        rows.push({
+          month: dateToRowMonth(m),
+          income: { amount: income, mode: "予" as const },
+          expense: { amount: expense, mode: "予" as const },
+          balance: { amount: nextBalance, mode: "予" as const },
+        })
+        return rows
+      }, []),
+    [fiscalMonths, forecastsByKey],
+  )
 
   const monthIncome = forecastsByKey.get(keyOf("income", selectedMonth)) ?? 0
   const monthExpense = forecastsByKey.get(keyOf("expense", selectedMonth)) ?? 0
@@ -91,6 +98,7 @@ export function DashboardPage() {
     setMonthEndError(null)
     try {
       await api.upsertMonthlyBalance({ month: monthInputToDate(month), amount: Math.round(amount) })
+      setMonthEndBalanceDraft(null)
       dashboardState.refetch()
     } catch (error) {
       setMonthEndError(apiErrorMessage(error))
@@ -107,7 +115,7 @@ export function DashboardPage() {
             <button
               type="button"
               className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
-              onClick={() => setMonth(addMonthsToMonthInput(month, -1))}
+              onClick={() => setMonthWithReset(addMonthsToMonthInput(month, -1))}
             >
               {"<"}
             </button>
@@ -115,14 +123,14 @@ export function DashboardPage() {
             <button
               type="button"
               className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
-              onClick={() => setMonth(addMonthsToMonthInput(month, 1))}
+              onClick={() => setMonthWithReset(addMonthsToMonthInput(month, 1))}
             >
               {">"}
             </button>
             <input
               type="month"
               value={month}
-              onChange={(event) => setMonth(event.target.value)}
+              onChange={(event) => setMonthWithReset(event.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-1 text-sm"
             />
           </div>
@@ -130,7 +138,9 @@ export function DashboardPage() {
             <button
               type="button"
               className="rounded-lg border border-slate-300 px-3 py-1.5"
-              onClick={() => setMonth(toMonthInput(Date.now()))}
+              onClick={() => {
+                setMonthWithReset(INITIAL_MONTH_INPUT)
+              }}
             >
               今月へ
             </button>
@@ -265,7 +275,7 @@ export function DashboardPage() {
             min="0"
             placeholder="例: 2300000"
             value={monthEndBalanceInput}
-            onChange={(event) => setMonthEndBalanceInput(event.target.value)}
+            onChange={(event) => setMonthEndBalanceDraft(event.target.value)}
             className="w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <button
@@ -310,7 +320,7 @@ export function DashboardPage() {
       )}
       {bulkEditorOpen && (
         <ForecastBulkEditorModal
-          startMonth={monthInputToDate(toMonthInput(Date.now()))}
+          startMonth={monthInputToDate(INITIAL_MONTH_INPUT)}
           forecasts={forecastState.status === "success" ? forecastState.data : []}
           onClose={() => setBulkEditorOpen(false)}
           onSaved={() => {
@@ -322,6 +332,8 @@ export function DashboardPage() {
     </div>
   )
 }
+
+const INITIAL_MONTH_INPUT = toMonthInput(Date.now())
 
 const TONE: Record<"emerald" | "rose", { bg: string; text: string }> = {
   emerald: { bg: "bg-emerald-50", text: "text-emerald-700" },

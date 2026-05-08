@@ -117,7 +117,7 @@ export function ImportModal({ onClose, onImported }: Props) {
       await navigator.clipboard.writeText(claudePrompt)
       setCopyStatus("done")
       setTimeout(() => setCopyStatus("idle"), 2000)
-    } catch (_error) {
+    } catch {
       setCopyStatus("error")
     }
   }
