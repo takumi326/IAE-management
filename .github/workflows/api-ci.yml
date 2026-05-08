@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - "api/**"
+      - "docker/**"
+      - "docker-compose.yml"
       - ".github/workflows/api-ci.yml"
   push:
     branches: [main]
     paths:
       - "api/**"
+      - "docker/**"
+      - "docker-compose.yml"
       - ".github/workflows/api-ci.yml"
 
 defaults:
@@ -65,27 +69,29 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      postgres:
-        image: postgres:16-alpine
+      mysql:
+        image: mysql:8.4
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: api_test
+          MYSQL_ROOT_PASSWORD: postgres
+          MYSQL_DATABASE: api_test
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd pg_isready
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ppostgres"
           --health-interval 5s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 30
 
     env:
       RAILS_ENV: test
-      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/api_test
+      TEST_DATABASE_URL: mysql2://root:postgres@127.0.0.1:3306/api_test
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Install MySQL client libraries (mysql2 gem)
+        run: sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
