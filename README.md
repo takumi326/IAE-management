@@ -33,6 +33,12 @@ Stop:
 docker compose down
 ```
 
+### Web: `node_modules` / Vite の import 解決
+
+Web は `./web/node_modules` を bind マウント上に置き、起動時に `npm ci` で `package-lock.json` と揃えます。依存を変えたらコンテナを再起動すれば反映されます。
+
+以前の `web_node_modules` 名前付きボリュームが残っている場合は `docker volume ls` で `*_web_node_modules` を削除してから `up` してください。
+
 DB を作り直すときは `docker compose down -v` でボリュームを削除してから `docker compose up --build` してください。初回はテスト用 DB を作成してから ridgepole と seed:
 
 ```bash
