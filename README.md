@@ -90,3 +90,26 @@ ALLOWED_EMAILS=foo@example.com,bar@example.com
   - `DEPLOY_APP_DIR` (サーバー上で `docker compose` を実行するディレクトリ)
 - API 本番では `ALLOWED_HOSTS` / `CORS_ORIGINS`（カンマ区切り）と `SUPABASE_URL` / `ALLOWED_EMAILS` を設定してください。
 - Render Postgres の `DATABASE_URL` は `postgresql://...` 形式をそのまま使えます（Rails の `pg` アダプタ）。
+
+### Render: DB スキーマ（Ridgepole）
+
+スキーマは **`rails db:migrate` ではなく** `api/db/Schemafile` を **Ridgepole** で本番 DB に適用します。未適用だと Postgres ログに `relation "forecasts" does not exist` のように出ます。
+
+**いまの DB を直す（一度だけ）**
+
+1. Render の **API サービス → Shell**（またはローカルから `DATABASE_URL` を本番用に向けたシェル）
+2. アプリのルートが `api`（Docker の `WORKDIR /app/api`）であることを確認し、次を実行:
+
+```bash
+bundle exec ridgepole -c config/database.yml -E production --apply -f db/Schemafile
+```
+
+**以降のデプロイで自動適用**
+
+Render の Web Service 設定で **Release Command** に次を入れると、デプロイのたびに差分が当たります（`DATABASE_URL` がサービスにリンク済みであること）。
+
+```bash
+bundle exec bash bin/render-release
+```
+
+スクリプトは `api/bin/render-release` にあります。

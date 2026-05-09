@@ -17,3 +17,13 @@ Export current DB schema back to Schemafile:
 ```bash
 bundle exec ridgepole -c config/database.yml -E development --export -f db/Schemafile
 ```
+
+## Production (Render など)
+
+`DATABASE_URL` を設定したうえで、本番にも Schemafile を適用します。
+
+```bash
+bundle exec ridgepole -c config/database.yml -E production --apply -f db/Schemafile
+```
+
+Render の Release Command 用に `bin/render-release` があります（ルート README の「Render: DB スキーマ」を参照）。

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Render の「Release Command」に指定してください（Docker の WORKDIR が /app/api の場合）。
+# 例: bash bin/render-release
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec bundle exec ridgepole -c config/database.yml -E production --apply -f db/Schemafile
