@@ -48,7 +48,7 @@ services:
     container_name: iae_web
     working_dir: /app/web
     # node_modules はホストの ./web/node_modules（bind）を使う。名前付きボリュームだと依存追加後に解決できないことがある
-    command: sh -lc "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    command: sh -lc "set -eu && npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
     environment:
       NODE_ENV: development
       VITE_API_BASE_URL: http://localhost:3000

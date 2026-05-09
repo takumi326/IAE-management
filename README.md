@@ -35,9 +35,19 @@ docker compose down
 
 ### Web: `node_modules` / Vite の import 解決
 
-Web は `./web/node_modules` を bind マウント上に置き、起動時に `npm ci` で `package-lock.json` と揃えます。依存を変えたらコンテナを再起動すれば反映されます。
+Web は `./web/node_modules` を bind マウント上に置き、起動時に `npm ci` で `package-lock.json` と揃えます。依存を変えたら **Web コンテナを再起動**（または `down` → `up`）すれば反映されます。
 
-以前の `web_node_modules` 名前付きボリュームが残っている場合は `docker volume ls` で `*_web_node_modules` を削除してから `up` してください。
+`Failed to resolve import "@supabase/supabase-js"` が **変わらない**ときは、まず **リポジトリを最新にしてから** 次を順に試してください。
+
+```bash
+git pull origin main
+docker compose down
+docker volume ls | grep web_node_modules   # 残っていれば削除（例: iae-management_web_node_modules）
+docker volume rm <上で見つかった名前>
+docker compose up --build -d
+```
+
+古い compose で名前付きボリューム `web_node_modules` を使っていた環境では、そのボリュームだけが残っているとコンテナ内とホストの `node_modules` がずれることがあります。`docker volume rm` で捨ててから `up` してください。
 
 DB を作り直すときは `docker compose down -v` でボリュームを削除してから `docker compose up --build` してください。初回はテスト用 DB を作成してから ridgepole と seed:
 
