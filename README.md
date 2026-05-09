@@ -33,6 +33,17 @@ Stop:
 docker compose down
 ```
 
+### Web: `Failed to resolve import "@supabase/supabase-js"` など
+
+`docker-compose.yml` で `web/node_modules` を名前付きボリュームにしているため、**依存追加後に古いボリュームのまま**になることがあります。次で直ります。
+
+```bash
+docker compose run --rm web npm install
+docker compose restart web
+```
+
+それでもダメなら、該当ボリュームを削除してから `up`（`docker volume ls` で `*_web_node_modules` を確認して `docker volume rm <名前>`）。
+
 DB を作り直すときは `docker compose down -v` でボリュームを削除してから `docker compose up --build` してください。初回はテスト用 DB を作成してから ridgepole と seed:
 
 ```bash
