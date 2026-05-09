@@ -1,0 +1,37 @@
+# Render Blueprint の例（このファイル名は render.yaml にコピーして使うか、
+# ダッシュボードで同等の設定を手動で入れてください）。
+#
+# 既に Web サービスと Postgres がある場合は、マージせず
+# 「Pre-Deploy Command」と環境変数だけ参考にしてください。
+#
+# https://render.com/docs/blueprint-spec
+
+version: "1"
+
+databases:
+  - name: solarc-postgres
+    databaseName: solarc
+    user: solarc_user
+
+services:
+  - type: web
+    name: solarc-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: api/Dockerfile
+    dockerContext: api
+    preDeployCommand: bash bin/render-release
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: solarc-postgres
+          property: connectionString
+      - key: RAILS_ENV
+        value: production
+      - key: RACK_ENV
+        value: production
+      # 以下はダッシュボードの Environment で追加推奨
+      # - SUPABASE_URL（Vercel の VITE_SUPABASE_URL と同一プロジェクト）
+      # - ALLOWED_EMAILS（空なら allowlist なし）
+      # - CORS_ORIGINS（例: https://solarc-beta.vercel.app）
+      # - ALLOWED_HOSTS / RAILS_LOG_LEVEL など
