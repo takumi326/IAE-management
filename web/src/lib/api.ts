@@ -78,6 +78,13 @@ export class ApiError extends Error {
 
 type Envelope<T> = { data: T }
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "")
+
+function withApiBase(path: string): string {
+  if (!API_BASE_URL) return path
+  return `${API_BASE_URL}${path}`
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   const body = await response.json().catch((): ApiErrorBody | null => null)
   const message = body?.error?.message ?? `${response.status} ${response.statusText}`
@@ -86,7 +93,7 @@ async function parseError(response: Response): Promise<ApiError> {
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const accessToken = import.meta.env.DEV ? null : await getSupabaseAccessToken()
-  const response = await fetch(path, {
+  const response = await fetch(withApiBase(path), {
     ...init,
     headers: {
       Accept: "application/json",
