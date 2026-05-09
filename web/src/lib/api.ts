@@ -91,25 +91,41 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, message, body?.error?.details)
 }
 
+const API_FETCH_TIMEOUT_MS = 15_000
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const accessToken = import.meta.env.DEV ? null : await getSupabaseAccessToken()
-  const response = await fetch(withApiBase(path), {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!response.ok) {
-    throw await parseError(response)
+  const timeoutController = new AbortController()
+  const timeoutId = window.setTimeout(() => timeoutController.abort(), API_FETCH_TIMEOUT_MS)
+
+  const mergedSignal =
+    init?.signal && typeof AbortSignal !== "undefined" && typeof AbortSignal.any === "function"
+      ? AbortSignal.any([init.signal, timeoutController.signal])
+      : timeoutController.signal
+
+  try {
+    const response = await fetch(withApiBase(path), {
+      ...init,
+      signal: mergedSignal,
+      headers: {
+        Accept: "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(init?.headers ?? {}),
+      },
+    })
+
+    if (!response.ok) {
+      throw await parseError(response)
+    }
+    if (response.status === 204) {
+      return undefined as T
+    }
+    const body = (await response.json()) as Envelope<T>
+    return body.data
+  } finally {
+    window.clearTimeout(timeoutId)
   }
-  if (response.status === 204) {
-    return undefined as T
-  }
-  const body = (await response.json()) as Envelope<T>
-  return body.data
 }
 
 function postJson<T>(path: string, body: unknown): Promise<T> {
