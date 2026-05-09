@@ -27,6 +27,19 @@ Endpoints:
 - API: `http://localhost:3000`
 - DB: `localhost:5432` (PostgreSQL 16)
 
+DBeaver などでローカル DB を見るときは、デフォルトのデータベース名 **`iae_management_development`**（ユーザー `postgres` / パスワード `postgres`）を開いてください。`postgres` という名前の管理用 DB だけを見ているとテーブルが空に見えます。
+
+### 初回・DB 作り直し後（Docker）
+
+次で development に Ridgepole を当て、`db:seed` まで実行します（`api_test` 用の Ridgepole も続けて実行）。
+
+```bash
+chmod +x scripts/docker-db-bootstrap.sh   # 初回のみ
+./scripts/docker-db-bootstrap.sh
+```
+
+手動で行う場合は従来どおり `docker compose run --rm api bash -lc "cd /app/api && ..."`（このファイルの「DB を作り直すとき」節）でも構いません。
+
 Stop:
 
 ```bash
@@ -95,10 +108,10 @@ ALLOWED_EMAILS=foo@example.com,bar@example.com
 
 スキーマは **`rails db:migrate` ではなく** `api/db/Schemafile` を **Ridgepole** で本番 DB に適用します。未適用だと Postgres ログに `relation "forecasts" does not exist` のように出ます。
 
-**いまの DB を直す（一度だけ）**
+**いまの本番 DB を直す（手動・一度）**
 
-1. Render の **API サービス → Shell**（またはローカルから `DATABASE_URL` を本番用に向けたシェル）
-2. アプリのルートが `api`（Docker の `WORKDIR /app/api`）であることを確認し、次を実行:
+1. Render の **API サービス → Shell**（イメージ内のカレントディレクトリは `/app/api`）
+2. 次を実行:
 
 ```bash
 bundle exec ridgepole -c config/database.yml -E production --apply -f db/Schemafile
@@ -106,10 +119,20 @@ bundle exec ridgepole -c config/database.yml -E production --apply -f db/Schemaf
 
 **以降のデプロイで自動適用**
 
-Render の Web Service 設定で **Release Command** に次を入れると、デプロイのたびに差分が当たります（`DATABASE_URL` がサービスにリンク済みであること）。
+Render ダッシュボードの **Pre-Deploy Command**（旧称 Release Command に相当）に次を設定します（`DATABASE_URL` が API にリンク済みであること）。
 
 ```bash
-bundle exec bash bin/render-release
+bash bin/render-release
 ```
 
-スクリプトは `api/bin/render-release` にあります。
+スクリプトは `api/bin/render-release` です。Blueprint（`render.yaml`）を使う場合はフィールド名は **`preDeployCommand`** です。雛形は `docs/render-blueprint.example.yaml` を参照してください。
+
+**本番の seed について**
+
+`rails db:seed` は **デプロイでは自動実行されません**（意図的）。初回だけマスタやサンプル予測を入れたいときは、上記 Shell で **一度だけ**:
+
+```bash
+bundle exec rails db:seed
+```
+
+※ seed は予測などを `find_or_initialize_by` で上書きする行があるため、本番で何度も流すとデータが意図せず戻る可能性があります。運用データが入ったあとは seed は使わない想定です。
