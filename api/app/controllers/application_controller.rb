@@ -12,12 +12,38 @@ class ApplicationController < ActionController::API
   def authenticate_request!
     return if Rails.env.test? || Rails.env.development?
     token = bearer_token
-    payload = decode_supabase_jwt(token)
-    email = payload["email"].to_s
-    if email.blank? || !allowed_email?(email)
-      render json: { error: { code: "unauthorized", message: "Unauthorized" } }, status: :unauthorized
+    if token.blank?
+      render json: {
+        error: {
+          code: "missing_token",
+          message: "Authorization に Bearer トークンがありません。"
+        }
+      }, status: :unauthorized
       return
     end
+
+    payload = decode_supabase_jwt(token)
+    email = payload["email"].to_s
+    if payload.blank? || email.blank?
+      render json: {
+        error: {
+          code: "invalid_token",
+          message: "JWT の検証に失敗しました。Render の SUPABASE_URL をフロントの Supabase プロジェクト URL と一致させてください。"
+        }
+      }, status: :unauthorized
+      return
+    end
+
+    unless allowed_email?(email)
+      render json: {
+        error: {
+          code: "email_not_allowed",
+          message: "このメールアドレスは許可されていません（環境変数 ALLOWED_EMAILS を確認してください）。"
+        }
+      }, status: :forbidden
+      return
+    end
+
     @current_subject = email
   end
 

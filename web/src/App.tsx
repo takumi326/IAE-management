@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Route, Routes } from "react-router-dom"
-import { api } from "./lib/api.ts"
+import { ApiError, api } from "./lib/api.ts"
 import { isSupabaseConfigured, supabase } from "./lib/supabase.ts"
 import { LoginPage } from "./pages/LoginPage.tsx"
 import { DashboardPage } from "./pages/DashboardPage.tsx"
@@ -26,12 +26,15 @@ export default function App() {
   const [authStatus, setAuthStatus] = useState<"loading" | "authenticated" | "guest">(
     IS_DEV ? "authenticated" : INITIAL_AUTH.status,
   )
-  const [authError] = useState<string | null>(INITIAL_AUTH.error)
+  const [authError, setAuthError] = useState<string | null>(INITIAL_AUTH.error)
   const closeDrawer = () => setDrawerOpen(false)
 
   useEffect(() => {
     if (IS_DEV) return
-    if (!isSupabaseConfigured || !supabase) return
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthStatus("guest")
+      return
+    }
     const client = supabase
 
     let active = true
@@ -45,9 +48,13 @@ export default function App() {
         }
         await api.me()
         if (!active) return
+        setAuthError(null)
         setAuthStatus("authenticated")
-      } catch {
+      } catch (err) {
         if (!active) return
+        const message =
+          err instanceof ApiError ? err.message : "サーバーとの認証に失敗しました。時間をおいて再度お試しください。"
+        setAuthError(message)
         setAuthStatus("guest")
       }
     }
