@@ -26,6 +26,4 @@ bundle exec ridgepole -c config/database.yml -E development --export -f db/Schem
 bundle exec ridgepole -c config/database.yml -E production --apply -f db/Schemafile
 ```
 
-Render の **Pre-Deploy Command** 用に `bin/render-release` があります（ルート README の「Render: DB スキーマ」を参照）。
-
-本番の **`rails db:seed`** はデプロイに含めていません。初回のみ Shell で実行してください（再実行で予測などが上書きされる可能性あり）。
+本番 Docker は起動時に Ridgepole を流します（`bin/docker-start`）。手動・Pre-Deploy 用に `bin/render-release` もあります（ルート README 参照）。

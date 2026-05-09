@@ -106,33 +106,29 @@ ALLOWED_EMAILS=foo@example.com,bar@example.com
 
 ### Render: DB スキーマ（Ridgepole）
 
-スキーマは **`rails db:migrate` ではなく** `api/db/Schemafile` を **Ridgepole** で本番 DB に適用します。未適用だと Postgres ログに `relation "forecasts" does not exist` のように出ます。
+スキーマは **`rails db:migrate` ではなく** `api/db/Schemafile` を **Ridgepole** で当てます。本番 Docker イメージは **コンテナ起動時**（`api/bin/docker-start`）に一度 Ridgepole を実行してから Puma を起動するため、**Pre-Deploy（有料プラン向け）は必須ではありません**。無効化したい場合だけ API の環境変数に `SKIP_RIDGEPOLE_ON_BOOT=1` を設定してください。
 
-**いまの本番 DB を直す（手動・一度）**
-
-1. Render の **API サービス → Shell**（イメージ内のカレントディレクトリは `/app/api`）
-2. 次を実行:
+手動で当て直すときは **API サービス → Shell** で:
 
 ```bash
 bundle exec ridgepole -c config/database.yml -E production --apply -f db/Schemafile
 ```
 
-**以降のデプロイで自動適用**
+（有料プランで Pre-Deploy を使う場合は `bash bin/render-release` を **Settings → Deploy** に設定してもよいです。起動時と二重になるので、どちらか一方にするとよいです。）
 
-Render ダッシュボードの **Pre-Deploy Command**（旧称 Release Command に相当）に次を設定します（`DATABASE_URL` が API にリンク済みであること）。
+### Render 本番 Postgres に外部から接続して SQL を実行する
+
+GUI（DBeaver / TablePlus / Beekeeper Studio など）でも **ターミナルの psql** でも同じです。
+
+1. Render ダッシュボードで **PostgreSQL** のインスタンス（Web サービスではない）を開く。
+2. 画面上部付近の **Connect**（または **Info** / **Connections**）から **External Database URL** をコピーする。中にホスト・ポート・ユーザー・DB 名・パスワードが含まれる。
+3. **Inbound IP 許可**（IP Allow List）を Postgres 側で設定する。自宅のグローバル IP を追加するか、検証中のみ `0.0.0.0/0`（全世界）にするかはポリシー次第。**本番は可能なら自宅／固定 IP のみ**に絞る。
+4. クライアント側で **SSL を必須**にする（接続文字列に `sslmode=require` が付いていない場合は DBeaver のドライバプロパティや「SSL」タブで有効化）。
+
+**psql の例**（URL はダッシュボードの値に置き換え）:
 
 ```bash
-bash bin/render-release
+psql "postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require"
 ```
 
-スクリプトは `api/bin/render-release` です。Blueprint（`render.yaml`）を使う場合はフィールド名は **`preDeployCommand`** です。雛形は `docs/render-blueprint.example.yaml` を参照してください。
-
-**本番の seed について**
-
-`rails db:seed` は **デプロイでは自動実行されません**（意図的）。初回だけマスタやサンプル予測を入れたいときは、上記 Shell で **一度だけ**:
-
-```bash
-bundle exec rails db:seed
-```
-
-※ seed は予測などを `find_or_initialize_by` で上書きする行があるため、本番で何度も流すとデータが意図せず戻る可能性があります。運用データが入ったあとは seed は使わない想定です。
+接続できたら、通常の PostgreSQL と同様に `SELECT`、`CREATE TABLE` などを実行できます。スキーマの正本はリポジトリの `api/db/Schemafile` なので、**テーブル定義を変えたい場合はコード側を直してデプロイ**し、手元 SQL はデータ修正・調査用に使うと安全です。

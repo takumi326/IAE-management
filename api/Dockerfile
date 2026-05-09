@@ -14,9 +14,11 @@ RUN bundle install
 
 COPY . .
 
+RUN chmod +x bin/docker-start bin/render-release
+
 ENV RAILS_ENV=production
 ENV RACK_ENV=production
 
 EXPOSE 3000
 
-CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]
+CMD ["bin/docker-start"]
