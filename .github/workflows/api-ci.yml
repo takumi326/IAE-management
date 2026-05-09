@@ -69,29 +69,30 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mysql:
-        image: mysql:8.4
+      postgres:
+        image: postgres:16
         env:
-          MYSQL_ROOT_PASSWORD: postgres
-          MYSQL_DATABASE: api_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: api_test
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ppostgres"
+          --health-cmd="pg_isready -U postgres -d api_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 30
 
     env:
       RAILS_ENV: test
-      TEST_DATABASE_URL: mysql2://root:postgres@127.0.0.1:3306/api_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/api_test
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Install MySQL client libraries (mysql2 gem)
-        run: sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev
+      - name: Install PostgreSQL client libraries (pg gem)
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
