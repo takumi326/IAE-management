@@ -1,24 +1,19 @@
-# MySQL 8.x with mysql2 adapter (utf8mb4).
-#
-# Ensure libmysqlclient is installed for native extension builds:
-#   Debian/Ubuntu: apt install default-libmysqlclient-dev
-#   macOS (Homebrew): brew install mysql-client && bundle config build.mysql2 --with-mysql-config=/opt/homebrew/bin/mysql_config
-#
+# PostgreSQL with pg adapter.
 default: &default
-  adapter: mysql2
-  encoding: utf8mb4
+  adapter: postgresql
+  encoding: unicode
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
 
 development:
   <<: *default
-  url: <%= ENV["DATABASE_URL"] || "mysql2://root:postgres@127.0.0.1:3306/iae_management_development" %>
+  url: <%= ENV["DATABASE_URL"] || "postgresql://postgres:postgres@127.0.0.1:5432/iae_management_development" %>
 
 # Warning: The database defined as "test" will be erased and
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
 test:
   <<: *default
-  url: <%= ENV["TEST_DATABASE_URL"] || "mysql2://root:postgres@127.0.0.1:3306/api_test" %>
+  url: <%= ENV["TEST_DATABASE_URL"] || "postgresql://postgres:postgres@127.0.0.1:5432/api_test" %>
 
 production:
   <<: *default

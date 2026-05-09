@@ -25,7 +25,7 @@ Endpoints:
 
 - Web: `http://localhost:5173`
 - API: `http://localhost:3000`
-- DB: `localhost:3306` (MySQL 8)
+- DB: `localhost:5432` (PostgreSQL 16)
 
 Stop:
 
@@ -33,11 +33,15 @@ Stop:
 docker compose down
 ```
 
-PostgreSQL から移行した場合や DB を作り直すときは `docker compose down -v` でボリュームを削除してから `docker compose up --build` してください。初回スキーマ適用とシード:
+DB を作り直すときは `docker compose down -v` でボリュームを削除してから `docker compose up --build` してください。初回はテスト用 DB を作成してから ridgepole と seed:
 
 ```bash
+docker compose run --rm api bash -lc "cd /app/api && RAILS_ENV=test bundle exec rails db:create"
 docker compose run --rm api bash -lc "cd /app/api && bundle exec ridgepole -c config/database.yml -E development --apply -f db/Schemafile && bundle exec rails db:seed"
+docker compose run --rm api bash -lc "cd /app/api && bundle exec ridgepole -c config/database.yml -E test --apply -f db/Schemafile"
 ```
+
+`api_test` が無いエラーが出たら、上の `rails db:create` を実行するか、`docker compose down -v` でボリュームを消してから `up` し直してください（`docker/postgres-init` で `api_test` が作られます）。
 
 ## Login (Supabase Auth)
 
@@ -69,3 +73,4 @@ ALLOWED_EMAILS=foo@example.com,bar@example.com
   - `DEPLOY_PORT` (任意)
   - `DEPLOY_APP_DIR` (サーバー上で `docker compose` を実行するディレクトリ)
 - API 本番では `ALLOWED_HOSTS` / `CORS_ORIGINS`（カンマ区切り）と `SUPABASE_URL` / `ALLOWED_EMAILS` を設定してください。
+- Render Postgres の `DATABASE_URL` は `postgresql://...` 形式をそのまま使えます（Rails の `pg` アダプタ）。
