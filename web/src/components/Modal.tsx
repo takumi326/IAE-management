@@ -1,19 +1,23 @@
-import { useEffect, type ReactNode } from "react"
+import { useEffect, useRef, type ReactNode } from "react"
 
 type Props = {
   title: string
   onClose: () => void
   children: ReactNode
-  size?: "sm" | "md" | "lg"
+  size?: "sm" | "md" | "lg" | "xl"
 }
 
 const MODAL_MAX: Record<NonNullable<Props["size"]>, string> = {
   sm: "max-w-sm",
   md: "max-w-xl",
   lg: "max-w-4xl",
+  xl: "max-w-6xl",
 }
 
 export function Modal({ title, onClose, children, size = "md" }: Props) {
+  /** オーバーレイ上で pointerdown したときだけ true。内側で押して外で離すと閉じないようにする */
+  const overlayCloseArmed = useRef(false)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
@@ -25,8 +29,17 @@ export function Modal({ title, onClose, children, size = "md" }: Props) {
   return (
     <div
       className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+      onPointerDown={(e) => {
+        overlayCloseArmed.current = e.target === e.currentTarget
+      }}
+      onPointerUp={(e) => {
+        if (e.target === e.currentTarget && overlayCloseArmed.current) {
+          onClose()
+        }
+        overlayCloseArmed.current = false
+      }}
+      onPointerCancel={() => {
+        overlayCloseArmed.current = false
       }}
     >
       <div className={`w-full ${MODAL_MAX[size]} max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl`}>

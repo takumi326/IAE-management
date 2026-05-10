@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import ReactMarkdown from "react-markdown"
 import { FormActions, FormError, Modal } from "../components/Modal.tsx"
 import { api, type UserPreferences } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
@@ -219,8 +220,9 @@ export function StockDailyPage() {
         : key === "result"
           ? savedStockPrompts.result
           : savedStockPrompts.sector
+    const forClipboard = applyStockPromptPlaceholders(text, today())
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(forClipboard)
       setCopiedKey(key)
       window.setTimeout(() => {
         setCopiedKey((c) => (c === key ? null : c))
@@ -256,7 +258,13 @@ export function StockDailyPage() {
       {promptModalOpen && (
         <Modal title="プロンプト編集" onClose={closePromptModal} size="lg">
           <p className="mb-2 text-sm text-slate-600">
-            毎日の記録の仮説・結果・セクター調べ用の Claude プロンプトをそれぞれ保存します。空で保存するとその項目は未設定になります。
+            毎日の記録の仮説・結果・セクター調べ用の Claude プロンプトをそれぞれ保存します。空で保存するとその項目は未設定になります。コピー時に次のプレースホルダを今日の日付へ置き換えます（大文字小文字無視・前後に空白可）:{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">{"{{date}}"}</code> は{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">YYYY年MM月DD日</code>、{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">{"{{date_iso}}"}</code> は{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">YYYY-MM-DD</code>、{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">{"{{記録日}}"}</code> は{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">{"{{date}}"}</code> と同じです。
           </p>
           <FormError message={promptOpenError} />
           <FormError message={promptSaveError} />
@@ -312,12 +320,14 @@ export function StockDailyPage() {
           onClose={closeFieldEdit}
           size="lg"
         >
+          <p className="mb-2 text-xs text-slate-500">マークダウンで入力してください（詳細ではレンダリングして表示します）。</p>
           <textarea
             value={fieldDraft}
             onChange={(e) => setFieldDraft(e.target.value)}
             rows={18}
             spellCheck={false}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm leading-relaxed"
+            placeholder={"# 見出し\n- リスト\n```\nコード\n```"}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed"
           />
           <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
             <button
@@ -468,14 +478,14 @@ export function StockDailyPage() {
               />
             </label>
             <label className="block text-sm text-slate-700">
-              仮説
+              仮説（マークダウン）
               <textarea
                 value={createHypothesis}
                 onChange={(e) => setCreateHypothesis(e.target.value)}
                 rows={12}
                 spellCheck={false}
-                placeholder="この日の仮説を入力"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm leading-relaxed"
+                placeholder={"この日の仮説（マークダウン可）\n# 見出し\n- 項目"}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed"
               />
             </label>
             {createError && <p className="text-sm text-rose-700">{createError}</p>}
@@ -500,8 +510,8 @@ export function StockDailyPage() {
       )}
 
       {detailRow && (
-        <Modal title={formatRecordDateJp(detailRow.date)} onClose={() => setDetailRow(null)} size="lg">
-          <div className="max-h-[70vh] space-y-5 overflow-y-auto pr-1">
+        <Modal title={formatRecordDateJp(detailRow.date)} onClose={() => setDetailRow(null)} size="xl">
+          <div className="grid max-h-[72vh] grid-cols-1 gap-3 overflow-y-auto pr-1 lg:grid-cols-3 lg:items-stretch">
             <DetailBlock title="仮説" body={detailRow.hypothesis} />
             <DetailBlock title="結果" body={detailRow.result} />
             <DetailBlock title="セクター調べ" body={detailRow.sectorResearch} />
@@ -530,20 +540,25 @@ export function StockDailyPage() {
   )
 }
 
+const MARKDOWN_DETAIL_CLASS =
+  "min-h-0 min-w-0 text-sm text-slate-800 [&>*:first-child]:mt-0 [&_h1]:mb-2 [&_h1]:mt-3 [&_h1]:text-base [&_h1]:font-bold [&_h2]:mb-1.5 [&_h2]:mt-2.5 [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:mb-1 [&_h3]:mt-2 [&_h3]:text-sm [&_h3]:font-semibold [&_p]:my-1.5 [&_p]:leading-relaxed [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_blockquote]:my-2 [&_blockquote]:border-l-4 [&_blockquote]:border-slate-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-600 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_pre]:my-2 [&_pre]:max-h-48 [&_pre]:overflow-auto [&_pre]:rounded-lg [&_pre]:bg-slate-100 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-xs [&_a]:text-indigo-600 [&_a]:underline [&_hr]:my-3 [&_table]:my-2 [&_table]:w-full [&_table]:text-xs [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1 [&_strong]:font-semibold"
+
 function DetailBlock({ title, body }: { title: string; body: string }) {
   const t = body.trim()
   return (
-    <section>
-      <h4 className="mb-1.5 text-sm font-semibold text-slate-800">{title}</h4>
-      {t ? (
-        <pre className="wrap-break-word whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800">
-          {body}
-        </pre>
-      ) : (
-        <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-3 py-2 text-xs text-slate-400">
-          （未入力）
-        </p>
-      )}
+    <section className="flex min-h-0 min-w-0 flex-col rounded-xl border border-slate-200 bg-slate-50/40 lg:max-h-[65vh]">
+      <h4 className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+        {title}
+      </h4>
+      <div className={`min-h-0 flex-1 overflow-y-auto p-3 ${t ? "bg-white" : ""}`}>
+        {t ? (
+          <div className={MARKDOWN_DETAIL_CLASS}>
+            <ReactMarkdown>{body}</ReactMarkdown>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400">（未入力）</p>
+        )}
+      </div>
     </section>
   )
 }
@@ -597,6 +612,15 @@ function formatRecordDateJp(isoDate: string): string {
   const dayn = Number(da)
   if (!Number.isFinite(yn) || !Number.isFinite(mon) || !Number.isFinite(dayn)) return isoDate
   return `${yn}年${String(mon).padStart(2, "0")}月${String(dayn).padStart(2, "0")}日`
+}
+
+/** 株プロンプト用。コピー時などに `recordedOnIso`（YYYY-MM-DD）基準で置換する */
+function applyStockPromptPlaceholders(text: string, recordedOnIso: string): string {
+  const jp = formatRecordDateJp(recordedOnIso)
+  return text
+    .replace(/\{\{\s*date_iso\s*\}\}/gi, recordedOnIso)
+    .replace(/\{\{\s*date\s*\}\}/gi, jp)
+    .replace(/\{\{\s*記録日\s*\}\}/g, jp)
 }
 
 function readRows(): StockDailyRow[] {
