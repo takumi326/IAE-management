@@ -55,7 +55,8 @@ export function SettingsPage() {
         api.signOut(),
         supabase?.auth.signOut(),
       ])
-      window.location.reload()
+      // このまま reload すると /settings 等で再読み込みされ、ホスティング側が SPA 未対応だと 404 になる
+      window.location.replace(import.meta.env.BASE_URL)
     } catch (error) {
       setErrorMessage(apiErrorMessage(error))
     } finally {
