@@ -125,5 +125,84 @@ RSpec.describe "Api::Actuals", type: :request do
       expect(response).to have_http_status(:ok)
       expect(Transaction.where(month: Date.new(2026, 7, 1), amount: -4_500).count).to eq(1)
     end
+
+    it "rejects one_time scope without month" do
+      post "/api/actuals/sync", params: { expense_scope: "one_time" }, headers: headers
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "rejects invalid expense_scope" do
+      post "/api/actuals/sync", params: { month: "2026-06-01", expense_scope: "bogus" }, headers: headers
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "one_time scope only creates one_time expenses for the month" do
+      pm = create(:payment_method, method_type: "card", ledger_charge_timing: "same_month")
+      create(:expense,
+             minor_category: expense_minor,
+             payment_method: pm,
+             expense_type: :one_time,
+             amount: 100,
+             start_month: Date.new(2026, 6, 1),
+             end_month: Date.new(2026, 6, 1))
+      create(:expense,
+             minor_category: expense_minor,
+             payment_method: pm,
+             expense_type: :recurring,
+             recurring_cycle: :monthly,
+             amount: 9_999,
+             start_month: Date.new(2026, 1, 1))
+
+      post "/api/actuals/sync", params: { month: "2026-06-01", expense_scope: "one_time" }, headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body).dig("data", "created_expense_count")).to eq(1)
+      expect(Transaction.where("amount < 0").count).to eq(1)
+      expect(Transaction.where(amount: -100).count).to eq(1)
+    end
+
+    it "recurring scope uses today and next month and ignores month param" do
+      travel_to Time.zone.local(2026, 5, 10) do
+        pm = create(:payment_method, method_type: "card", ledger_charge_timing: "same_month")
+        create(:expense,
+               minor_category: expense_minor,
+               payment_method: pm,
+               expense_type: :recurring,
+               recurring_cycle: :monthly,
+               amount: 1_100,
+               start_month: Date.new(2026, 1, 1))
+
+        post "/api/actuals/sync", params: { month: "2020-01-01", expense_scope: "recurring" }, headers: headers
+        expect(response).to have_http_status(:ok)
+        body = JSON.parse(response.body)
+        expect(body.dig("data", "months")).to eq([ "2026-05-01", "2026-06-01" ])
+        expect(body.dig("data", "created_expense_count")).to eq(2)
+      end
+    end
+
+    it "recurring scope does not create one_time for the same months" do
+      travel_to Time.zone.local(2026, 5, 10) do
+        pm = create(:payment_method, method_type: "card", ledger_charge_timing: "same_month")
+        create(:expense,
+               minor_category: expense_minor,
+               payment_method: pm,
+               expense_type: :one_time,
+               amount: 50,
+               start_month: Date.new(2026, 5, 1),
+               end_month: Date.new(2026, 5, 1))
+        create(:expense,
+               minor_category: expense_minor,
+               payment_method: pm,
+               expense_type: :recurring,
+               recurring_cycle: :monthly,
+               amount: 2_200,
+               start_month: Date.new(2026, 1, 1))
+
+        post "/api/actuals/sync", params: { expense_scope: "recurring" }, headers: headers
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body).dig("data", "created_expense_count")).to eq(2)
+        expect(Transaction.where(amount: -50).count).to eq(0)
+        expect(Transaction.where(amount: -2_200).count).to eq(2)
+      end
+    end
   end
 end

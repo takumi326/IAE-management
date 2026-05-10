@@ -205,6 +205,8 @@ export type UpsertForecastInput = {
 
 export type SyncActualsInput = {
   month?: string
+  /** 省略: 単発+定期。one_time: 単発のみ（month 必須）。recurring: 定期のみ（サーバー側で今月・来月の2ヶ月） */
+  expense_scope?: "one_time" | "recurring"
 }
 
 export type SyncActualsByMonth = {

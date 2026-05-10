@@ -54,7 +54,7 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
         end_month: monthDate,
         memo: memo.trim() === "" ? null : memo.trim(),
       })
-      await api.syncActuals({ month: monthDate })
+      await api.syncActuals({ month: monthDate, expense_scope: "one_time" })
       onSaved()
     } catch (error) {
       setErrorMessage(apiErrorMessage(error))
