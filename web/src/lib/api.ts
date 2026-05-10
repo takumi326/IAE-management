@@ -205,7 +205,7 @@ export type UpsertForecastInput = {
 
 export type SyncActualsInput = {
   month?: string
-  /** 省略: 単発+定期。one_time: 単発のみ（month 必須）。recurring: 定期のみ（サーバー側で今月・来月の2ヶ月） */
+  /** 省略: 単発+定期。one_time: 単発のみ（month 必須）。recurring: 定期のみ（month があればその月を含む今年度12ヶ月、無ければ当月基準の今年度） */
   expense_scope?: "one_time" | "recurring"
 }
 
@@ -270,6 +270,8 @@ export type FiscalActualMonthRow = {
   month: string
   has_income_actual: boolean
   has_expense_actual: boolean
+  /** 単発支出の台帳がある（ダッシュボード支出サマリーが「実」になる条件） */
+  has_one_time_expense_actual: boolean
   income_actual: number
   expense_actual: number
   /** 月末残高が DB に保存されているか（今年度表の「実」はこれのみ） */

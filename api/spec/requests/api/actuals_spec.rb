@@ -160,7 +160,7 @@ RSpec.describe "Api::Actuals", type: :request do
       expect(Transaction.where(amount: -100).count).to eq(1)
     end
 
-    it "recurring scope uses today and next month and ignores month param" do
+    it "recurring scope fills the fiscal year (April–March) containing anchor month" do
       travel_to Time.zone.local(2026, 5, 10) do
         pm = create(:payment_method, method_type: "card", ledger_charge_timing: "same_month")
         create(:expense,
@@ -171,11 +171,16 @@ RSpec.describe "Api::Actuals", type: :request do
                amount: 1_100,
                start_month: Date.new(2026, 1, 1))
 
-        post "/api/actuals/sync", params: { month: "2020-01-01", expense_scope: "recurring" }, headers: headers
+        post "/api/actuals/sync", params: { month: "2026-08-01", expense_scope: "recurring" }, headers: headers
         expect(response).to have_http_status(:ok)
         body = JSON.parse(response.body)
-        expect(body.dig("data", "months")).to eq([ "2026-05-01", "2026-06-01" ])
-        expect(body.dig("data", "created_expense_count")).to eq(2)
+        expect(body.dig("data", "months")).to eq(
+          (0..11).map { |i| Date.new(2026, 4, 1).advance(months: i).to_s }
+        )
+        expect(body.dig("data", "created_expense_count")).to eq(12)
+
+        post "/api/actuals/sync", params: { month: "2026-08-01", expense_scope: "recurring" }, headers: headers
+        expect(JSON.parse(response.body).dig("data", "created_expense_count")).to eq(0)
       end
     end
 
@@ -199,9 +204,9 @@ RSpec.describe "Api::Actuals", type: :request do
 
         post "/api/actuals/sync", params: { expense_scope: "recurring" }, headers: headers
         expect(response).to have_http_status(:ok)
-        expect(JSON.parse(response.body).dig("data", "created_expense_count")).to eq(2)
+        expect(JSON.parse(response.body).dig("data", "created_expense_count")).to eq(12)
         expect(Transaction.where(amount: -50).count).to eq(0)
-        expect(Transaction.where(amount: -2_200).count).to eq(2)
+        expect(Transaction.where(amount: -2_200).count).to eq(12)
       end
     end
   end

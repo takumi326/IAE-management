@@ -78,7 +78,7 @@ export function DashboardPage() {
     setRecurringActualsBusy(true)
     setRecurringActualsError(null)
     try {
-      await api.syncActuals({ expense_scope: "recurring" })
+      await api.syncActuals({ expense_scope: "recurring", month: monthInputToDate(month) })
       await fiscalActualsState.refetch()
       await dashboardState.refetch()
     } catch (err) {
@@ -88,7 +88,7 @@ export function DashboardPage() {
     }
   }
 
-  // 選択月の単発のみ台帳を揃える（定期は「定期実績を作成」で今月・来月のみ）
+  // 選択月の単発のみ台帳を揃える（定期は「定期実績を作成」で選択月の今年度12ヶ月）
   /* month のみで再同期。useFetch の戻りオブジェクトは毎レンダーで新参照になり得るため dashboardState / fiscalActualsState 全体は依存に入れない */
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -136,7 +136,7 @@ export function DashboardPage() {
         const forecastIncome = forecastsByKey.get(keyOf("income", m)) ?? 0
         const forecastExpense = forecastsByKey.get(keyOf("expense", m)) ?? 0
         const useIncomeActual = act?.has_income_actual ?? false
-        const useExpenseActual = act?.has_expense_actual ?? false
+        const useExpenseActual = act?.has_one_time_expense_actual ?? false
         const income = useIncomeActual ? toNumber(act!.income_actual) : forecastIncome
         const expense = useExpenseActual ? toNumber(act!.expense_actual) : forecastExpense
         const incomeMode: Mode = useIncomeActual ? "実" : "予"
@@ -690,7 +690,7 @@ function ExpenseBreakdownCard({
     data: DashboardSummary | null
     error: Error | null
   }
-  /** 「一覧」タブで予測のみのときの案内に使用（内訳各行のバッジは出さない） */
+  /** 実績が無く上部が予測のみのときの案内文に使用（単発が無くサマリーが「予」の月でも定期の明細行はある） */
   expenseMode: Mode
 }) {
   const [breakdownView, setBreakdownView] = useState<"payment" | "category" | "lines">("payment")
@@ -737,7 +737,7 @@ function ExpenseBreakdownCard({
           <BreakdownList items={paymentItems} accent="text-rose-600" />
         ) : breakdownView === "category" ? (
           <CategoryBreakdownList groups={categoryGroups} />
-        ) : expenseMode === "予" ? (
+        ) : lineItems.length === 0 ? (
           <p className="text-sm text-slate-500">この月は実績ベースの支出明細がありません。</p>
         ) : (
           <ExpenseLineItemsList items={lineItems} />
