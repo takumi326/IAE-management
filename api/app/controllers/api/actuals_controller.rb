@@ -57,16 +57,16 @@ module Api
       case scope
       when :recurring
         t = Date.current
-        return [ t.beginning_of_month, t.next_month.beginning_of_month ]
+        [ t.beginning_of_month, t.next_month.beginning_of_month ]
       when :one_time
-        return [ parse_sync_month(params[:month]) ]
+        [ parse_sync_month(params[:month]) ]
       else
         if params[:month].present?
-          return [ parse_sync_month(params[:month]) ]
+          [ parse_sync_month(params[:month]) ]
+        else
+          t = Date.current
+          [ t.beginning_of_month, t.next_month.beginning_of_month ]
         end
-
-        t = Date.current
-        [ t.beginning_of_month, t.next_month.beginning_of_month ]
       end
     end
 
