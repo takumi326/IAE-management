@@ -1,5 +1,5 @@
-# IAE-management
-収支管理アプリ
+# SOLARC
+収支の予実をまとめるアプリ。
 
 ## Project Structure
 
