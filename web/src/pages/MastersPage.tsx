@@ -33,7 +33,7 @@ const tabs = [
 ] as const
 
 const actionButtonBaseClass =
-  "inline-flex min-h-9 min-w-[3.25rem] items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+  "inline-flex min-h-9 min-w-[3.25rem] items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors"
 
 type TabId = (typeof tabs)[number]["id"]
 
@@ -408,20 +408,20 @@ function ExpenseMastersSection() {
                   <span className="text-xs text-slate-500">{rows.length}件</span>
                 </summary>
                 <div className="overflow-x-auto border-t border-slate-100">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <table className="min-w-[820px] divide-y divide-slate-200 text-sm">
                     <thead className="bg-slate-50 text-left text-xs text-slate-500">
                       <tr>
-                        <th className="px-3 py-2">小カテゴリ</th>
-                        <th className="px-3 py-2">種別</th>
-                        <th className="px-3 py-2">周期</th>
-                        <th className="px-3 py-2">金額</th>
-                        <th className="px-3 py-2">支払方法</th>
+                        <th className="px-3 py-2 whitespace-nowrap">小カテゴリ</th>
+                        <th className="px-3 py-2 whitespace-nowrap">種別</th>
+                        <th className="px-3 py-2 whitespace-nowrap">周期</th>
+                        <th className="px-3 py-2 whitespace-nowrap">金額</th>
+                        <th className="px-3 py-2 whitespace-nowrap">支払方法</th>
                         {filter === "one_time" ? (
-                          <th className="px-3 py-2">支払月</th>
+                          <th className="px-3 py-2 whitespace-nowrap">支払月</th>
                         ) : (
                           <>
-                            <th className="px-3 py-2">開始月</th>
-                            <th className="px-3 py-2">終了月</th>
+                            <th className="px-3 py-2 whitespace-nowrap">開始月</th>
+                            <th className="px-3 py-2 whitespace-nowrap">終了月</th>
                           </>
                         )}
                         <th className="px-3 py-2" />
@@ -430,23 +430,23 @@ function ExpenseMastersSection() {
                     <tbody className="divide-y divide-slate-100">
                       {rows.map((row) => (
                         <tr key={row.id}>
-                          <td className="px-3 py-2 text-slate-800">
+                          <td className="px-3 py-2 whitespace-nowrap text-slate-800">
                             {minorMap.get(row.minor_category_id)?.name ?? "—"}
                           </td>
-                          <td className="px-3 py-2">{formatRecurringTypeLabel(row.expense_type)}</td>
-                          <td className="px-3 py-2">{formatExpenseCycleCell(row)}</td>
-                          <td className="px-3 py-2">{formatAmountCell(row.amount)}</td>
-                          <td className="px-3 py-2">{methodMap.get(row.payment_method_id)?.name ?? "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatRecurringTypeLabel(row.expense_type)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatExpenseCycleCell(row)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatAmountCell(row.amount)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{methodMap.get(row.payment_method_id)?.name ?? "—"}</td>
                           {filter === "one_time" ? (
-                            <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">{formatMonthCell(row.start_month)}</td>
                           ) : (
                             <>
-                              <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
-                              <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{formatMonthCell(row.start_month)}</td>
+                              <td className="px-3 py-2 whitespace-nowrap">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
                             </>
                           )}
                           <td className="px-3 py-2">
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
                               <button
                                 type="button"
                                 className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
@@ -572,29 +572,29 @@ function IncomeMastersSection() {
                   <span className="text-xs text-slate-500">{rows.length}件</span>
                 </summary>
                 <div className="overflow-x-auto border-t border-slate-100">
-                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <table className="min-w-[760px] divide-y divide-slate-200 text-sm">
                     <thead className="bg-slate-50 text-left text-xs text-slate-500">
                       <tr>
-                        <th className="px-3 py-2">小カテゴリ</th>
-                        <th className="px-3 py-2">種別</th>
-                        <th className="px-3 py-2">金額</th>
-                        <th className="px-3 py-2">開始月</th>
-                        <th className="px-3 py-2">終了月</th>
+                        <th className="px-3 py-2 whitespace-nowrap">小カテゴリ</th>
+                        <th className="px-3 py-2 whitespace-nowrap">種別</th>
+                        <th className="px-3 py-2 whitespace-nowrap">金額</th>
+                        <th className="px-3 py-2 whitespace-nowrap">開始月</th>
+                        <th className="px-3 py-2 whitespace-nowrap">終了月</th>
                         <th className="px-3 py-2" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {rows.map((row: IncomeMaster) => (
                         <tr key={row.id}>
-                          <td className="px-3 py-2 text-slate-800">
+                          <td className="px-3 py-2 whitespace-nowrap text-slate-800">
                             {minorMap.get(row.minor_category_id)?.name ?? "—"}
                           </td>
-                          <td className="px-3 py-2">{formatRecurringTypeLabel(row.income_type)}</td>
-                          <td className="px-3 py-2">{formatAmountCell(row.amount)}</td>
-                          <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
-                          <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatRecurringTypeLabel(row.income_type)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatAmountCell(row.amount)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatMonthCell(row.start_month)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
                           <td className="px-3 py-2">
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-2 whitespace-nowrap">
                               <button
                                 type="button"
                                 className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
@@ -777,12 +777,12 @@ function Table({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200">
-      <table className="min-w-full divide-y divide-slate-200 text-sm">
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-[640px] divide-y divide-slate-200 text-sm">
         <thead className="bg-slate-50 text-left text-xs text-slate-500">
           <tr>
             {head.map((label) => (
-              <th key={label} className="px-3 py-2">
+              <th key={label} className="px-3 py-2 whitespace-nowrap">
                 {label}
               </th>
             ))}
@@ -792,7 +792,7 @@ function Table({
           {rows.map((row, i) => (
             <tr key={i}>
               {row.map((cell, j) => (
-                <td key={j} className="px-3 py-2">
+                <td key={j} className="px-3 py-2 whitespace-nowrap">
                   {cell}
                 </td>
               ))}
@@ -927,7 +927,7 @@ function MasterActualsModal({
                             type="month"
                             value={editMonth}
                             onChange={(e) => setEditMonth(e.target.value)}
-                            className="w-full max-w-[11rem] rounded-md border border-slate-300 px-2 py-1 text-xs"
+                            className="w-full max-w-44 rounded-md border border-slate-300 px-2 py-1 text-xs"
                           />
                         </td>
                         <td className="px-3 py-2 align-middle">
@@ -937,7 +937,7 @@ function MasterActualsModal({
                             step={1}
                             value={editAmount}
                             onChange={(e) => setEditAmount(e.target.value)}
-                            className="w-full max-w-[9rem] rounded-md border border-slate-300 px-2 py-1 text-xs"
+                            className="w-full max-w-36 rounded-md border border-slate-300 px-2 py-1 text-xs"
                           />
                         </td>
                         <td className="px-3 py-2 text-right">
