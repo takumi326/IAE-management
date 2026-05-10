@@ -55,7 +55,7 @@ export function SettingsPage() {
         api.signOut(),
         supabase?.auth.signOut(),
       ])
-      // このまま reload すると /settings 等で再読み込みされ、ホスティング側が SPA 未対応だと 404 になる
+      // このまま reload すると /finance/settings 等で再読み込みされ、ホスティング側が SPA 未対応だと 404 になる
       window.location.replace(import.meta.env.BASE_URL)
     } catch (error) {
       setErrorMessage(apiErrorMessage(error))
@@ -112,7 +112,6 @@ export function SettingsPage() {
     <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-bold">設定</h2>
-        <p className="mt-1 text-sm text-slate-500">プロンプトなどはサーバー（DB）に保存されます。</p>
       </section>
 
       <section id="import-prompt" className="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

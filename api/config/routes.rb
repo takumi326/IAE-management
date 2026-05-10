@@ -61,6 +61,12 @@ Rails.application.routes.draw do
         post :upsert
       end
     end
+
+    resources :stock_daily_notes, only: [ :index ] do
+      collection do
+        post :upsert
+      end
+    end
   end
 
   # Defines the root path route ("/")

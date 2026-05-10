@@ -10,7 +10,7 @@ export function LoginPage({ errorMessage }: Props) {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/finance`,
         // ログアウト後も前アカウントに自動で入らず、Google のアカウント選択を出す
         queryParams: { prompt: "select_account" },
       },

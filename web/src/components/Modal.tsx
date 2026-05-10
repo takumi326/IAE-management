@@ -4,7 +4,13 @@ type Props = {
   title: string
   onClose: () => void
   children: ReactNode
-  size?: "sm" | "md"
+  size?: "sm" | "md" | "lg"
+}
+
+const MODAL_MAX: Record<NonNullable<Props["size"]>, string> = {
+  sm: "max-w-sm",
+  md: "max-w-xl",
+  lg: "max-w-4xl",
 }
 
 export function Modal({ title, onClose, children, size = "md" }: Props) {
@@ -23,7 +29,7 @@ export function Modal({ title, onClose, children, size = "md" }: Props) {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className={`w-full ${size === "sm" ? "max-w-sm" : "max-w-xl"} rounded-2xl bg-white p-5 shadow-xl`}>
+      <div className={`w-full ${MODAL_MAX[size]} max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">{title}</h3>
           <button

@@ -289,10 +289,17 @@ export type AuthUser = {
 
 export type UserPreferences = {
   import_claude_prompt_template: string | null
+  /** 毎日の記録・Claude 用（未設定は null） */
+  stock_daily_hypothesis_prompt: string | null
+  stock_daily_result_prompt: string | null
+  stock_daily_sector_prompt: string | null
 }
 
 export type UserPreferencesInput = {
-  import_claude_prompt_template: string | null
+  import_claude_prompt_template?: string | null
+  stock_daily_hypothesis_prompt?: string | null
+  stock_daily_result_prompt?: string | null
+  stock_daily_sector_prompt?: string | null
 }
 
 export const api = {
