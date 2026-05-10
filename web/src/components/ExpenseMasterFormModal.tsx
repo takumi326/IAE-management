@@ -182,17 +182,6 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
             required
           />
         </label>
-        <label className="block text-sm">
-          <FieldLabel>メモ（任意）</FieldLabel>
-          <textarea
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            rows={2}
-            maxLength={2000}
-            placeholder="例: レシート番号、店名など"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-        </label>
         {expenseType === "one_time" ? (
           <label className="block text-sm">
             <FieldLabel>支払い月</FieldLabel>
@@ -227,6 +216,17 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
             </label>
           </div>
         )}
+        <label className="block text-sm">
+          <FieldLabel>メモ（任意）</FieldLabel>
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            rows={2}
+            maxLength={2000}
+            placeholder="例: レシート番号、店名など"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+        </label>
         <FormActions
           onCancel={onClose}
           submitting={submitting}

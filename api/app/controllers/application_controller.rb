@@ -9,6 +9,11 @@ class ApplicationController < ActionController::API
 
   attr_reader :current_subject
 
+  # ログイン主体（本番は JWT の email）。開発・テストでは未設定のため共有キーにフォールバック。
+  def preference_owner_key
+    current_subject.presence || "development"
+  end
+
   def authenticate_request!
     return if Rails.env.test? || Rails.env.development?
     token = bearer_token

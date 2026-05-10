@@ -239,11 +239,6 @@ export function DashboardPage() {
             }
           />
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          各月の <ModeBadge mode="予" /> をクリックすると予測金額を編集できます。
-          <ModeBadge mode="実" /> はその月に実績取引（定期の自動生成・単発・取込など）がある列です。
-          今年度サマリの月末残高のバッジをクリックすると、その月の月末残高を編集できます。
-        </p>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

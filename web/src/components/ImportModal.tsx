@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import { api, type MinorCategory } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
 import { sortMinorCategories } from "../lib/categorySort.ts"
+import { buildImportClaudePrompt } from "../lib/importPromptSettings.ts"
 import { useFetch } from "../lib/useFetch.ts"
 
 const FIXED_PAYMENT_METHOD_NAME = "Amazonカード"
@@ -40,17 +42,17 @@ export function ImportModal({ onClose, onImported }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [copyStatus, setCopyStatus] = useState<"idle" | "done" | "error">("idle")
-  const dictionaries = useFetch(() => Promise.all([api.minorCategories(), api.paymentMethods()]))
+  const bundle = useFetch(() => Promise.all([api.minorCategories(), api.paymentMethods(), api.userPreferences()]))
   const expenseMinors = useMemo(
     () =>
-      dictionaries.status === "success"
-        ? sortMinorCategories(dictionaries.data[0].filter((m) => m.major_category.kind === "expense"))
+      bundle.status === "success"
+        ? sortMinorCategories(bundle.data[0].filter((m) => m.major_category.kind === "expense"))
         : [],
-    [dictionaries],
+    [bundle],
   )
   const methods = useMemo(
-    () => (dictionaries.status === "success" ? dictionaries.data[1] : []),
-    [dictionaries],
+    () => (bundle.status === "success" ? bundle.data[1] : []),
+    [bundle],
   )
 
   const fixedPaymentMethod = useMemo(
@@ -73,7 +75,7 @@ export function ImportModal({ onClose, onImported }: Props) {
   }
 
   const claudePrompt = useMemo(() => {
-    if (dictionaries.status !== "success") {
+    if (bundle.status !== "success") {
       return "マスタを読み込み中です。しばらくしてから再度「プロンプトをコピー」してください。"
     }
     if (!fixedPaymentMethod) {
@@ -87,25 +89,13 @@ export function ImportModal({ onClose, onImported }: Props) {
       .map((m) => `- id ${m.id}: ${m.major_category.name} / ${m.name}`)
       .join("\n")
 
-    return `次の支払い明細を、JSONの配列だけにしてください（説明・\`\`\`・コメントは禁止）。
-
-1行＝単発支出1件。支払方法はすべて「${FIXED_PAYMENT_METHOD_NAME}」固定なので JSON には含めない。
-キーは次のとおり:
-- "month": "YYYY-MM"（必須）
-- "minor_category_id": 数値（必須。下の一覧の id のいずれか。明細の内容に最も近い小カテゴリを選ぶ）
-- "amount": 数値（必須。円、0以上。支出はプラスの数で）
-- "memo": 文字列（任意。短いメモ）
-
-利用可能な小カテゴリ（支出）:
-${catalog}
-
-例:
-[{"month":"2026-05","minor_category_id":${expenseMinors[0]?.id ?? 1},"amount":3500,"memo":"コンビニ"}]
-
-不明な行は出力しない。
-
-（明細をここに貼る）`
-  }, [dictionaries.status, expenseMinors, fixedPaymentMethod])
+    return buildImportClaudePrompt({
+      catalog,
+      paymentMethodName: FIXED_PAYMENT_METHOD_NAME,
+      exampleMinorId: expenseMinors[0]?.id ?? 1,
+      savedTemplate: bundle.data[2].import_claude_prompt_template,
+    })
+  }, [bundle, expenseMinors, fixedPaymentMethod])
 
   const buildPendingRows = (): PendingImportRow[] => {
     const rows = JSON.parse(rawJson) as ImportRow[]
@@ -157,7 +147,7 @@ ${catalog}
   }
 
   const onConfirmPreview = () => {
-    if (dictionaries.status !== "success") return
+    if (bundle.status !== "success") return
     if (!fixedPaymentMethod) {
       setErrorMessage(`支払方法「${FIXED_PAYMENT_METHOD_NAME}」がマスタにありません。先に登録してください。`)
       return
@@ -183,7 +173,7 @@ ${catalog}
   }
 
   const executeImport = async () => {
-    if (dictionaries.status !== "success" || !fixedPaymentMethod || !pendingRows?.length) return
+    if (bundle.status !== "success" || !fixedPaymentMethod || !pendingRows?.length) return
     setSubmitting(true)
     setErrorMessage(null)
     try {
@@ -254,6 +244,13 @@ ${catalog}
             <strong> {FIXED_PAYMENT_METHOD_NAME} </strong>
             です。まず JSON を確認し、問題なければ取り込みます。
           </p>
+          <p className="text-xs text-slate-500">
+            Claude 用のプロンプト本文は{" "}
+            <Link to="/settings#import-prompt" className="font-medium text-indigo-600 underline hover:text-indigo-500">
+              設定
+            </Link>
+            から編集できます（サーバーに保存されます）。
+          </p>
 
           {phase === "edit" && (
             <>
@@ -270,7 +267,7 @@ ${catalog}
                     <button
                       type="button"
                       onClick={() => void copyPrompt()}
-                      disabled={dictionaries.status !== "success" || !fixedPaymentMethod || expenseMinors.length === 0}
+                      disabled={bundle.status !== "success" || !fixedPaymentMethod || expenseMinors.length === 0}
                       className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       プロンプトをコピー
@@ -349,7 +346,7 @@ ${catalog}
                   type="button"
                   onClick={() => void onConfirmPreview()}
                   disabled={
-                    dictionaries.status !== "success" ||
+                    bundle.status !== "success" ||
                     !fixedPaymentMethod ||
                     expenseMinors.length === 0 ||
                     rawJson.trim() === ""
