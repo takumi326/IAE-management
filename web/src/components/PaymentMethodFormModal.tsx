@@ -1,10 +1,8 @@
 import { useState } from "react"
-import { api, type PaymentMethod, type PaymentMethodType } from "../lib/api.ts"
+import { api, type LedgerChargeTiming, type PaymentMethod, type PaymentMethodType } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
 import { formatPaymentMethodTypeLabel } from "../lib/labels.ts"
 import { FieldLabel, FormActions, FormError, Modal } from "./Modal.tsx"
-
-const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => i + 1)
 
 type Props = {
   onClose: () => void
@@ -12,15 +10,19 @@ type Props = {
   initial?: PaymentMethod
 }
 
-function daySelectValue(day: number | null): string {
-  return day == null ? "" : String(day)
+function defaultLedgerTiming(pm: PaymentMethod | undefined, methodType: PaymentMethodType): LedgerChargeTiming {
+  const v = pm?.ledger_charge_timing
+  if (v === "same_month" || v === "next_month") {
+    return v
+  }
+  return methodType === "card" ? "next_month" : "same_month"
 }
 
 export function PaymentMethodFormModal({ onClose, onSaved, initial }: Props) {
+  const initialType = initial?.method_type ?? "card"
   const [name, setName] = useState(initial?.name ?? "")
-  const [methodType, setMethodType] = useState<PaymentMethodType>(initial?.method_type ?? "card")
-  const [closingDay, setClosingDay] = useState<number | null>(initial?.closing_day ?? null)
-  const [debitDay, setDebitDay] = useState<number | null>(initial?.debit_day ?? 27)
+  const [methodType, setMethodType] = useState<PaymentMethodType>(initialType)
+  const [ledgerChargeTiming, setLedgerChargeTiming] = useState<LedgerChargeTiming>(defaultLedgerTiming(initial, initialType))
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -29,12 +31,11 @@ export function PaymentMethodFormModal({ onClose, onSaved, initial }: Props) {
     setSubmitting(true)
     setErrorMessage(null)
     try {
-      const payload = {
-        name: name.trim(),
-        method_type: methodType,
-        closing_day: methodType === "card" ? closingDay : null,
-        debit_day: debitDay,
-      }
+      const base = { name: name.trim(), method_type: methodType }
+      const payload =
+        methodType === "bank_withdrawal"
+          ? base
+          : { ...base, ledger_charge_timing: ledgerChargeTiming }
       if (initial) {
         await api.updatePaymentMethod(initial.id, payload)
       } else {
@@ -58,7 +59,7 @@ export function PaymentMethodFormModal({ onClose, onSaved, initial }: Props) {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="例：楽天カード / みずほ口座引落"
+            placeholder="例：楽天カード / みずほ口座引き落とし"
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             required
           />
@@ -70,15 +71,7 @@ export function PaymentMethodFormModal({ onClose, onSaved, initial }: Props) {
             onChange={(e) => {
               const next = e.target.value as PaymentMethodType
               setMethodType(next)
-              if (next === "bank_debit") {
-                setClosingDay(null)
-                if (debitDay == null) setDebitDay(1)
-              } else if (next === "bank_withdrawal") {
-                setClosingDay(null)
-                setDebitDay(null)
-              } else {
-                if (debitDay == null) setDebitDay(27)
-              }
+              setLedgerChargeTiming(defaultLedgerTiming(initial, next))
             }}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           >
@@ -88,66 +81,30 @@ export function PaymentMethodFormModal({ onClose, onSaved, initial }: Props) {
           </select>
         </label>
 
-        {methodType === "card" && (
-          <>
-            <label className="block text-sm">
-              <FieldLabel>締め日</FieldLabel>
-              <select
-                value={daySelectValue(closingDay)}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setClosingDay(v === "" ? null : Number(v))
-                }}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">月末</option>
-                {DAY_OPTIONS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}日
-                  </option>
-                ))}
-              </select>
+        {(methodType === "card" || methodType === "bank_debit") && (
+          <fieldset className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <legend className="text-xs font-medium text-slate-600">
+              {methodType === "card" ? "クレカの実績を載せる月" : "口座引き落としの実績を載せる月"}
+            </legend>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="ledgerChargeTiming"
+                checked={ledgerChargeTiming === "next_month"}
+                onChange={() => setLedgerChargeTiming("next_month")}
+              />
+              <span>翌月（引き落としが翌月のとき）</span>
             </label>
-            <label className="block text-sm">
-              <FieldLabel>引き落とし日（締めの翌月）</FieldLabel>
-              <select
-                value={daySelectValue(debitDay)}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setDebitDay(v === "" ? null : Number(v))
-                }}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">未設定</option>
-                {DAY_OPTIONS.map((d) => (
-                  <option key={d} value={d}>
-                    翌月{d}日
-                  </option>
-                ))}
-              </select>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="ledgerChargeTiming"
+                checked={ledgerChargeTiming === "same_month"}
+                onChange={() => setLedgerChargeTiming("same_month")}
+              />
+              <span>当月（引き落としが当月のとき）</span>
             </label>
-          </>
-        )}
-
-        {methodType === "bank_debit" && (
-          <label className="block text-sm">
-            <FieldLabel>引き落とし日（当月）</FieldLabel>
-            <select
-              value={daySelectValue(debitDay)}
-              onChange={(e) => {
-                const v = e.target.value
-                setDebitDay(v === "" ? null : Number(v))
-              }}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">未設定</option>
-              {DAY_OPTIONS.map((d) => (
-                <option key={d} value={d}>
-                  毎月{d}日
-                </option>
-              ))}
-            </select>
-          </label>
+          </fieldset>
         )}
 
         <FormActions onCancel={onClose} submitting={submitting} disabled={!name.trim()} />

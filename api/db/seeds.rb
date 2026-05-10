@@ -31,15 +31,14 @@ end
 end
 
 [
-  { name: "楽天カード", method_type: "card", closing_day: nil, debit_day: 27 },
-  { name: "みずほ口座引落", method_type: "bank_debit", closing_day: nil, debit_day: 26 },
-  { name: "ATM引き出し", method_type: "bank_withdrawal", closing_day: nil, debit_day: nil }
+  { name: "楽天カード", method_type: "card", ledger_charge_timing: "next_month" },
+  { name: "みずほ口座引き落とし", method_type: "bank_debit", ledger_charge_timing: "same_month" },
+  { name: "ATM引き出し", method_type: "bank_withdrawal" }
 ].each do |attrs|
-  PaymentMethod.find_or_create_by!(name: attrs[:name]) do |pm|
-    pm.method_type = attrs[:method_type]
-    pm.closing_day = attrs[:closing_day]
-    pm.debit_day = attrs[:debit_day]
-  end
+  name = attrs.fetch(:name)
+  pm = PaymentMethod.find_or_initialize_by(name: name)
+  pm.assign_attributes(attrs.except(:name))
+  pm.save!
 end
 
 today = Date.current

@@ -79,5 +79,51 @@ RSpec.describe "Api::Actuals", type: :request do
         expect(JSON.parse(response.body).dig("data", "created_expense_count")).to eq(0)
       end
     end
+
+    it "creates card next_month expenses in the following calendar month" do
+      card = create(:payment_method, method_type: "card", ledger_charge_timing: "next_month")
+      create(:expense,
+             minor_category: expense_minor,
+             payment_method: card,
+             expense_type: :recurring,
+             recurring_cycle: :monthly,
+             amount: 8_000,
+             start_month: Date.new(2026, 1, 1))
+
+      post "/api/actuals/sync", params: { month: "2026-06-01" }, headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(Transaction.where(month: Date.new(2026, 7, 1), amount: -8_000).count).to eq(1)
+      expect(Transaction.where(month: Date.new(2026, 6, 1)).where("amount < 0").count).to eq(0)
+    end
+
+    it "creates card same_month expenses in the accrual month" do
+      card = create(:payment_method, method_type: "card", ledger_charge_timing: "same_month")
+      create(:expense,
+             minor_category: expense_minor,
+             payment_method: card,
+             expense_type: :recurring,
+             recurring_cycle: :monthly,
+             amount: 3_000,
+             start_month: Date.new(2026, 1, 1))
+
+      post "/api/actuals/sync", params: { month: "2026-06-01" }, headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(Transaction.where(month: Date.new(2026, 6, 1), amount: -3_000).count).to eq(1)
+    end
+
+    it "creates bank_debit next_month expenses in the following calendar month" do
+      bank = create(:payment_method, method_type: "bank_debit", ledger_charge_timing: "next_month")
+      create(:expense,
+             minor_category: expense_minor,
+             payment_method: bank,
+             expense_type: :recurring,
+             recurring_cycle: :monthly,
+             amount: 4_500,
+             start_month: Date.new(2026, 1, 1))
+
+      post "/api/actuals/sync", params: { month: "2026-06-01" }, headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(Transaction.where(month: Date.new(2026, 7, 1), amount: -4_500).count).to eq(1)
+    end
   end
 end

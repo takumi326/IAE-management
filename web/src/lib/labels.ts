@@ -15,7 +15,7 @@ const recurringCycleLabels = {
 
 const paymentMethodTypeLabels = {
   card: "クレジットカード",
-  bank_debit: "口座引落",
+  bank_debit: "口座引き落とし",
   bank_withdrawal: "口座引き出し",
 } as const
 
@@ -45,21 +45,33 @@ export function formatCardDebitDayLabel(day: number | null | undefined): string 
   return day == null ? "未設定" : `翌月${day}日`
 }
 
-/** 口座引落：当月のこの日に引き落とし */
+/** 口座引き落とし：当月のこの日に引き落とし（表示用・マスタでは日付未使用） */
 export function formatBankDebitDayLabel(day: number | null | undefined): string {
   return day == null ? "未設定" : `毎月${day}日`
+}
+
+export function formatLedgerChargeTimingLabel(
+  timing: string | null | undefined,
+  methodType?: string,
+): string {
+  if (timing === "same_month") return "実績は当月計上"
+  if (timing === "next_month") return "実績は翌月計上"
+  if (methodType === "card") return "実績は翌月計上（既定）"
+  if (methodType === "bank_debit") return "実績は当月計上（既定）"
+  return "—"
 }
 
 export function formatPaymentMethodSchedule(pm: {
   method_type: string
   closing_day: number | null
   debit_day: number | null
+  ledger_charge_timing?: string | null
 }): string {
   if (pm.method_type === "bank_withdrawal") {
     return "引き出し日の設定なし"
   }
   if (pm.method_type === "bank_debit") {
-    return `引落 ${formatBankDebitDayLabel(pm.debit_day)}`
+    return formatLedgerChargeTimingLabel(pm.ledger_charge_timing, "bank_debit")
   }
-  return `締め ${formatClosingDayLabel(pm.closing_day)}・引落 ${formatCardDebitDayLabel(pm.debit_day)}`
+  return formatLedgerChargeTimingLabel(pm.ledger_charge_timing, "card")
 }

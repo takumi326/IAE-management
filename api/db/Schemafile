@@ -20,6 +20,7 @@ create_table "payment_methods", force: :cascade do |t|
   t.string "method_type", limit: 20, null: false, default: "card"
   t.integer "closing_day"
   t.integer "debit_day"
+  t.string "ledger_charge_timing", limit: 20
   t.datetime "created_at", null: false
   t.datetime "updated_at", null: false
   t.index [ "name" ], name: "index_payment_methods_on_name", unique: true
@@ -135,6 +136,7 @@ add_check_constraint "incomes", "amount >= 0", name: "incomes_amount_check"
 add_check_constraint "payment_methods", "method_type IN ('card', 'bank_debit', 'bank_withdrawal')", name: "payment_methods_method_type_check"
 add_check_constraint "payment_methods", "closing_day IS NULL OR (closing_day >= 1 AND closing_day <= 31)", name: "payment_methods_closing_day_check"
 add_check_constraint "payment_methods", "debit_day IS NULL OR (debit_day >= 1 AND debit_day <= 31)", name: "payment_methods_debit_day_check"
+add_check_constraint "payment_methods", "ledger_charge_timing IS NULL OR ledger_charge_timing IN ('same_month', 'next_month')", name: "payment_methods_ledger_charge_timing_check"
 add_check_constraint "forecasts", "kind IN (0, 1)", name: "forecasts_kind_check"
 add_check_constraint "forecast_defaults", "expense_amount >= 0", name: "forecast_defaults_expense_amount_check"
 add_check_constraint "forecast_defaults", "income_amount >= 0", name: "forecast_defaults_income_amount_check"
