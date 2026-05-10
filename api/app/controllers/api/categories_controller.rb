@@ -10,9 +10,10 @@ module Api
     end
 
     def minors
-      scope = MinorCategory.includes(:major_category).order(:name)
-      scope = scope.where(major_category_id: params[:major_category_id]) if params[:major_category_id].present?
-      scope = scope.joins(:major_category).where(major_categories: { kind: params[:kind] }) if params[:kind].present?
+      scope = MinorCategory.joins(:major_category).includes(:major_category)
+      scope = scope.where(minor_categories: { major_category_id: params[:major_category_id] }) if params[:major_category_id].present?
+      scope = scope.where(major_categories: { kind: params[:kind] }) if params[:kind].present?
+      scope = scope.order("major_categories.name ASC", "minor_categories.name ASC")
 
       render json: {
         data: scope.map { |c| serialize_minor(c) }

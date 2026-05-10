@@ -43,6 +43,29 @@ RSpec.describe "Api::Expenses", type: :request do
       expect(body["data"]["expense_type"]).to eq("recurring")
       expect(body["data"]["recurring_cycle"]).to eq("monthly")
       expect(body["data"]["amount"]).to eq(12000)
+      expect(body["data"]["memo"]).to be_nil
+    end
+
+    it "creates an expense with memo" do
+      post "/api/expenses",
+           params: {
+             expense: {
+               minor_category_id: minor.id,
+               payment_method_id: payment_method.id,
+               expense_type: "one_time",
+               recurring_cycle: "monthly",
+               renewal_month: nil,
+               amount: 500,
+               start_month: "2026-05-01",
+               end_month: "2026-05-01",
+               memo: "  外食メモ  "
+             }
+           },
+           headers: headers
+
+      expect(response).to have_http_status(:created)
+      body = JSON.parse(response.body)
+      expect(body["data"]["memo"]).to eq("外食メモ")
     end
 
     it "returns 422 for invalid params" do
@@ -64,6 +87,15 @@ RSpec.describe "Api::Expenses", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(expense.reload.expense_type).to eq("recurring")
+    end
+
+    it "updates memo" do
+      patch "/api/expenses/#{expense.id}",
+            params: { expense: { memo: "備考" } },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(expense.reload.memo).to eq("備考")
     end
 
     it "returns 404 for missing expense" do

@@ -1,6 +1,7 @@
 import { type FormEvent, useMemo, useState } from "react"
 import { api } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
+import { sortMinorCategories } from "../lib/categorySort.ts"
 import { useFetch } from "../lib/useFetch.ts"
 
 type Props = {
@@ -12,7 +13,10 @@ type Props = {
 export function ActualEditorModal({ month, onClose, onSaved }: Props) {
   const result = useFetch(() => Promise.all([api.minorCategories(), api.paymentMethods()]))
   const expenseMinors = useMemo(
-    () => (result.status === "success" ? result.data[0].filter((m) => m.major_category.kind === "expense") : []),
+    () =>
+      result.status === "success"
+        ? sortMinorCategories(result.data[0].filter((m) => m.major_category.kind === "expense"))
+        : [],
     [result],
   )
   const paymentMethods = result.status === "success" ? result.data[1] : []
@@ -20,6 +24,7 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
   const [minorId, setMinorId] = useState<number | "">("")
   const [paymentId, setPaymentId] = useState<number | "">("")
   const [amount, setAmount] = useState("")
+  const [memo, setMemo] = useState("")
   const [entryMonth, setEntryMonth] = useState(month)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -47,6 +52,7 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
         amount: Math.round(numericAmount),
         start_month: monthDate,
         end_month: monthDate,
+        memo: memo.trim() === "" ? null : memo.trim(),
       })
       await api.syncActuals({ month: monthDate })
       onSaved()
@@ -128,6 +134,18 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
               placeholder="例: 3500"
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               required
+            />
+          </label>
+
+          <label className="block text-sm">
+            <span className="text-slate-600">メモ（任意）</span>
+            <textarea
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              rows={2}
+              maxLength={2000}
+              placeholder="例: 店名・用途"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
           </label>
 

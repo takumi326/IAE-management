@@ -8,6 +8,7 @@ import {
   type PaymentMethod,
 } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
+import { sortMinorCategories } from "../lib/categorySort.ts"
 import { FieldLabel, FormActions, FormError, Modal } from "./Modal.tsx"
 
 type Props = {
@@ -20,7 +21,7 @@ type Props = {
 
 export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethods, initial }: Props) {
   const expenseMinors = useMemo(
-    () => minors.filter((m) => m.major_category.kind === "expense"),
+    () => sortMinorCategories(minors.filter((m) => m.major_category.kind === "expense")),
     [minors],
   )
 
@@ -35,6 +36,7 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
   )
   const [startMonth, setStartMonth] = useState<string>(initial ? dateToMonthInput(initial.start_month) : currentMonthInput())
   const [endMonth, setEndMonth] = useState<string>(initial?.end_month ? dateToMonthInput(initial.end_month) : "")
+  const [memo, setMemo] = useState<string>(initial?.memo ?? "")
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -62,6 +64,7 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
         amount: Math.round(numericAmount),
         start_month: expenseType === "one_time" ? monthInputToDate(oneTimeMonth) : monthInputToDate(startMonth),
         end_month: expenseType === "one_time" ? null : endMonth ? monthInputToDate(endMonth) : null,
+        memo: memo.trim() === "" ? null : memo.trim(),
       }
       if (initial) {
         await api.updateExpense(initial.id, payload)
@@ -177,6 +180,17 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
             placeholder="例: 30000"
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             required
+          />
+        </label>
+        <label className="block text-sm">
+          <FieldLabel>メモ（任意）</FieldLabel>
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            rows={2}
+            maxLength={2000}
+            placeholder="例: レシート番号、店名など"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
         </label>
         {expenseType === "one_time" ? (

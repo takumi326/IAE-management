@@ -62,11 +62,15 @@ module Api
     end
 
     def expense_params
-      params.expect(expense: [ :minor_category_id, :payment_method_id, :expense_type, :recurring_cycle, :renewal_month, :amount, :start_month, :end_month ])
+      params.expect(expense: [
+        :minor_category_id, :payment_method_id, :expense_type, :recurring_cycle, :renewal_month, :amount, :start_month, :end_month, :memo
+      ])
     end
 
     def expense_json(expense)
-      expense.as_json(only: [ :id, :minor_category_id, :payment_method_id, :expense_type, :recurring_cycle, :renewal_month, :amount, :start_month, :end_month ])
+      expense.as_json(only: [
+        :id, :minor_category_id, :payment_method_id, :expense_type, :recurring_cycle, :renewal_month, :amount, :start_month, :end_month, :memo
+      ])
     end
 
     def render_validation_error(expense)
