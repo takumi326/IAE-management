@@ -99,7 +99,7 @@ export default function App() {
           <SidebarNav onNavigate={closeDrawer} />
         </aside>
 
-        <section>
+        <section className="min-w-0">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/masters" element={<MastersPage />} />

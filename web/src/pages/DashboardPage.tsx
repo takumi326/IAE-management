@@ -197,9 +197,9 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               type="button"
               className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
@@ -207,7 +207,7 @@ export function DashboardPage() {
             >
               {"<"}
             </button>
-            <h2 className="text-xl font-bold">{month.replace("-", "年")}月</h2>
+            <h2 className="text-lg font-bold sm:text-xl">{month.replace("-", "年")}月</h2>
             <button
               type="button"
               className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
@@ -231,18 +231,18 @@ export function DashboardPage() {
               className="rounded-lg border border-slate-300 px-3 py-1 text-sm"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
+          <div className="flex w-full flex-wrap items-center gap-2 text-sm sm:w-auto">
             <button
               type="button"
               onClick={() => setActualEditorOpen(true)}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500"
+              className="w-full rounded-lg bg-indigo-600 px-3 py-1.5 font-medium text-white hover:bg-indigo-500 sm:w-auto"
             >
               ＋ 単発の支出を追加
             </button>
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className="rounded-lg border border-indigo-300 bg-white px-3 py-1.5 font-medium text-indigo-700 hover:bg-indigo-50"
+              className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-1.5 font-medium text-indigo-700 hover:bg-indigo-50 sm:w-auto"
             >
               取込
             </button>
@@ -252,7 +252,7 @@ export function DashboardPage() {
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <article className="rounded-xl border border-slate-200 bg-indigo-50 p-4">
             <p className="text-xs font-medium text-indigo-700">月末予想残高（予）</p>
-            <p className="mt-1 text-2xl font-bold text-indigo-700">{formatYen(expectedBalance)}</p>
+            <p className="mt-1 text-xl font-bold text-indigo-700 sm:text-2xl">{formatYen(expectedBalance)}</p>
             <p className="mt-1 text-xs text-indigo-700">前月比 {formatYenDelta(lastMonthDiff)}</p>
           </article>
           <SummaryCard
@@ -281,24 +281,24 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="min-w-0 flex-1 text-lg font-semibold">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold leading-tight">
             今年度サマリ（{dateToRowMonth(fiscalMonths[0])}〜{dateToRowMonth(fiscalMonths[fiscalMonths.length - 1])}）
           </h2>
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={() => void syncRecurringActualsForCurrentNext()}
               disabled={recurringActualsBusy}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {recurringActualsBusy ? "作成中…" : "定期実績を作成"}
             </button>
             <button
               type="button"
               onClick={() => setBulkEditorOpen(true)}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm sm:w-auto"
             >
               予測をまとめて編集
             </button>
@@ -313,20 +313,20 @@ export function DashboardPage() {
           </p>
         )}
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <table className="min-w-[640px] divide-y divide-slate-200 text-xs sm:min-w-full sm:text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500">
               <tr>
-                <th className="px-3 py-2">月</th>
-                <th className="px-3 py-2">収入</th>
-                <th className="px-3 py-2">支出</th>
-                <th className="px-3 py-2">月末残高</th>
+                <th className="px-2 py-2 sm:px-3">月</th>
+                <th className="px-2 py-2 sm:px-3">収入</th>
+                <th className="px-2 py-2 sm:px-3">支出</th>
+                <th className="px-2 py-2 sm:px-3">月末残高</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {yearlySummary.map((row) => (
                 <tr key={row.month}>
-                  <td className="px-3 py-2 font-medium">{row.month}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-2 font-medium whitespace-nowrap sm:px-3">{row.month}</td>
+                  <td className="px-2 py-2 whitespace-nowrap sm:px-3">
                     <ValueWithMode
                       amount={row.income.amount}
                       mode={row.income.mode}
@@ -342,7 +342,7 @@ export function DashboardPage() {
                       }
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-2 whitespace-nowrap sm:px-3">
                     <ValueWithMode
                       amount={row.expense.amount}
                       mode={row.expense.mode}
@@ -369,7 +369,7 @@ export function DashboardPage() {
                       actualBreakdownAriaLabel={`${row.month}の支出内訳をモーダルで開く`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-2 py-2 whitespace-nowrap sm:px-3">
                     <ValueWithMode
                       amount={row.balance.amount}
                       mode={row.balance.mode}
@@ -389,13 +389,13 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="mb-2 text-lg font-semibold">月末残高の作成</h2>
         <p className="mb-3 text-xs text-slate-500">
           対象月を選んで保存します。今年度サマリの月末残高バッジから開いても同じです。
         </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex w-full flex-wrap items-center gap-2 text-sm sm:w-auto">
             <span className="text-slate-600">対象月</span>
             <input
               type="month"
@@ -404,23 +404,23 @@ export function DashboardPage() {
                 setMonthEndFormMonth(event.target.value)
                 setMonthEndBalanceDraft(null)
               }}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm sm:w-auto"
             />
           </label>
-          <input
+            <input
             type="number"
             min="0"
             placeholder={monthEndDashboardState.status === "loading" ? "読み込み中…" : "例: 2300000"}
             value={monthEndBalanceInput}
             onChange={(event) => setMonthEndBalanceDraft(event.target.value)}
             disabled={monthEndDashboardState.status !== "success"}
-            className="w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50"
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 sm:w-48"
           />
           <button
             type="button"
             onClick={() => void saveMonthEndBalance()}
             disabled={monthEndSaving || monthEndDashboardState.status !== "success"}
-            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
+            className="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:w-auto"
           >
             {monthEndSaving ? "保存中…" : "保存"}
           </button>
@@ -493,7 +493,7 @@ export function DashboardPage() {
           }}
         >
           <div
-            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-4 shadow-xl sm:p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-2">
