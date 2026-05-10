@@ -40,6 +40,8 @@ chmod +x scripts/docker-db-bootstrap.sh   # 初回のみ
 
 手動で行う場合は従来どおり `docker compose run --rm api bash -lc "cd /app/api && ..."`（このファイルの「DB を作り直すとき」節）でも構いません。
 
+`db:seed` は development では **当月分の実績デモ**（取引・月末残高）も入ります。ダッシュで「実」が出るか確認する用途です。テスト環境ではこのブロックは実行されません。
+
 Stop:
 
 ```bash
@@ -85,6 +87,8 @@ docker compose run --rm api bash -lc "cd /app/api && bundle exec ridgepole -c co
 # Web
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
+# Web と API が別オリジンのとき必須（Vite のビルド時に埋め込まれる）。未設定だと /api/* が静的ホストに飛び 404 になる。
+VITE_API_BASE_URL=https://<your-api-host>
 
 # API
 SUPABASE_URL=https://<project-ref>.supabase.co
@@ -94,6 +98,7 @@ ALLOWED_EMAILS=foo@example.com,bar@example.com
 ## Production / CD
 
 - 想定構成: Web=Vercel / API=Render / Auth=Supabase
+- **Web を API と別ドメインで配信する場合**、`docker compose` のローカル用 `VITE_API_BASE_URL` と同様に、本番のフロントビルド（Vercel の Environment Variables など）に **`VITE_API_BASE_URL`** を必ず入れてください（API のオリジンのみ、パスなし・末尾 `/` なし）。これが無いとブラウザは `https://<web>/api/...` にリクエストし、静的ホスト側が **404** を返します。同一ドメインでリバースプロキシが `/api` を API に流す構成なら空のままでよいです。
 - `main` への push で `.github/workflows/cd.yml` が実行され、API/Web の Docker イメージを GHCR (`ghcr.io/<owner>/<repo>`) に push します。
 - デプロイを自動化する場合は、次の GitHub Secrets を設定してください。
   - `DEPLOY_HOST`
@@ -102,6 +107,7 @@ ALLOWED_EMAILS=foo@example.com,bar@example.com
   - `DEPLOY_PORT` (任意)
   - `DEPLOY_APP_DIR` (サーバー上で `docker compose` を実行するディレクトリ)
 - API 本番では `ALLOWED_HOSTS` / `CORS_ORIGINS`（カンマ区切り）と `SUPABASE_URL` / `ALLOWED_EMAILS` を設定してください。
+- 取込プロンプトの保存先 API は **`GET` / `PATCH /api/preferences/import_prompt`**（フロント既定）。`/api/user_preferences` も同じ処理の別ルートとして残しています。リバースプロキシでパスを個別に許可している場合はどちらか（または `/api/` 一括）を API に流してください。
 - Render Postgres の `DATABASE_URL` は `postgresql://...` 形式をそのまま使えます（Rails の `pg` アダプタ）。
 
 ### Render: DB スキーマ（Ridgepole）

@@ -5,7 +5,7 @@ module Api
 
       render json: {
         data: {
-          month: month,
+          month: month.strftime("%Y-%m-%d"),
           expense_by_payment: expense_by_payment(month),
           expense_by_category_groups: expense_by_category_groups(month),
           monthly_balance: MonthlyBalance.find_by(month: month)&.amount || 0
@@ -18,13 +18,17 @@ module Api
       anchor = target_month
       data = fiscal_month_starts(anchor).map do |m|
         m0 = m.beginning_of_month
+        mb = MonthlyBalance.find_by(month: m0)
         {
-          month: m0,
+          # フロントの月キーと一致させる（JSON の Date シリアライズが環境で ISO 日時になると月がずれるのを避ける）
+          month: m0.strftime("%Y-%m-%d"),
           has_income_actual: income_ledger_exists?(m0),
           has_expense_actual: expense_ledger_exists?(m0),
           income_actual: actual_income_total(m0),
           expense_actual: actual_expense_total(m0),
-          has_monthly_balance: MonthlyBalance.exists?(month: m0)
+          has_monthly_balance: mb.present?,
+          # 今年度表で「実」の月末残高に表示する値（未保存月は null）
+          monthly_balance_amount: mb&.amount
         }
       end
 

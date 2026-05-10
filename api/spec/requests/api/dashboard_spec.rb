@@ -80,11 +80,13 @@ RSpec.describe "Api::Dashboard", type: :request do
       expect(june_row.fetch("expense_actual").to_i).to eq(4_000)
       expect(june_row.fetch("income_actual").to_i).to eq(50_000)
       expect(june_row.fetch("has_monthly_balance")).to be(false)
+      expect(june_row.fetch("monthly_balance_amount")).to be_nil
 
       MonthlyBalance.create!(month: june, amount: 999_000)
       get "/api/dashboard/fiscal_actuals", params: { month: "2026-06-01" }, headers: headers
       june_with_balance = JSON.parse(response.body).fetch("data").find { |r| r.fetch("month") == "2026-06-01" }
       expect(june_with_balance.fetch("has_monthly_balance")).to be(true)
+      expect(june_with_balance.fetch("monthly_balance_amount").to_f).to eq(999_000.0)
 
       april_row = rows.find { |r| r.fetch("month") == "2026-04-01" }
       expect(april_row.fetch("has_expense_actual")).to be(false)
