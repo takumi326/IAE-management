@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
+import remarkBreaks from "remark-breaks"
 import { FormActions, FormError, Modal } from "../components/Modal.tsx"
 import { api, type UserPreferences } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
@@ -553,7 +554,7 @@ function DetailBlock({ title, body }: { title: string; body: string }) {
       <div className={`min-h-0 flex-1 overflow-y-auto p-3 ${t ? "bg-white" : ""}`}>
         {t ? (
           <div className={MARKDOWN_DETAIL_CLASS}>
-            <ReactMarkdown>{body}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkBreaks]}>{body}</ReactMarkdown>
           </div>
         ) : (
           <p className="text-xs text-slate-400">（未入力）</p>
