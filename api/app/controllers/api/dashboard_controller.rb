@@ -23,7 +23,8 @@ module Api
           has_income_actual: income_ledger_exists?(m0),
           has_expense_actual: expense_ledger_exists?(m0),
           income_actual: actual_income_total(m0),
-          expense_actual: actual_expense_total(m0)
+          expense_actual: actual_expense_total(m0),
+          has_monthly_balance: MonthlyBalance.exists?(month: m0)
         }
       end
 

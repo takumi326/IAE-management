@@ -3,6 +3,7 @@ import { ActualEditorModal } from "../components/ActualEditorModal.tsx"
 import { ImportModal } from "../components/ImportModal.tsx"
 import { ForecastFormModal } from "../components/ForecastFormModal.tsx"
 import { ForecastBulkEditorModal } from "../components/ForecastBulkEditorModal.tsx"
+import { MonthlyBalanceFormModal } from "../components/MonthlyBalanceFormModal.tsx"
 import {
   api,
   type CategoryKind,
@@ -35,13 +36,20 @@ export function DashboardPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [forecastTarget, setForecastTarget] = useState<ForecastTarget | null>(null)
   const [bulkEditorOpen, setBulkEditorOpen] = useState(false)
+  const [monthEndFormMonth, setMonthEndFormMonth] = useState(INITIAL_MONTH_INPUT)
   const [monthEndBalanceDraft, setMonthEndBalanceDraft] = useState<string | null>(null)
   const [monthEndSaving, setMonthEndSaving] = useState(false)
   const [monthEndError, setMonthEndError] = useState<string | null>(null)
+  const [monthlyBalanceModalMonth, setMonthlyBalanceModalMonth] = useState<string | null>(null)
 
   const forecastState = useFetch<Forecast[]>(() => api.forecasts())
   const dashboardLoader = useCallback(() => api.dashboard(monthInputToDate(month)), [month])
   const dashboardState = useFetch(dashboardLoader)
+  const monthEndDashboardLoader = useCallback(
+    () => api.dashboard(monthInputToDate(monthEndFormMonth)),
+    [monthEndFormMonth],
+  )
+  const monthEndDashboardState = useFetch(monthEndDashboardLoader)
   const fiscalActualsLoader = useCallback(
     () => api.fiscalActuals(monthInputToDate(month)),
     [month],
@@ -69,8 +77,8 @@ export function DashboardPage() {
   }, [])
 
   const fetchedMonthEndBalanceInput =
-    dashboardState.status === "success"
-      ? String(toNumber(dashboardState.data.monthly_balance))
+    monthEndDashboardState.status === "success"
+      ? String(toNumber(monthEndDashboardState.data.monthly_balance))
       : ""
   const monthEndBalanceInput = monthEndBalanceDraft ?? fetchedMonthEndBalanceInput
 
@@ -102,7 +110,7 @@ export function DashboardPage() {
         const expenseMode: Mode = useExpenseActual ? "実" : "予"
         const previousBalance = rows.length > 0 ? rows[rows.length - 1].balance.amount : 0
         const nextBalance = previousBalance + income - expense
-        const balanceMode: Mode = incomeMode === "実" || expenseMode === "実" ? "実" : "予"
+        const balanceMode: Mode = act?.has_monthly_balance ? "実" : "予"
         rows.push({
           month: dateToRowMonth(m),
           income: { amount: income, mode: incomeMode },
@@ -131,9 +139,11 @@ export function DashboardPage() {
     setMonthEndSaving(true)
     setMonthEndError(null)
     try {
-      await api.upsertMonthlyBalance({ month: monthInputToDate(month), amount: Math.round(amount) })
+      await api.upsertMonthlyBalance({ month: monthInputToDate(monthEndFormMonth), amount: Math.round(amount) })
       setMonthEndBalanceDraft(null)
       dashboardState.refetch()
+      monthEndDashboardState.refetch()
+      fiscalActualsState.refetch()
     } catch (error) {
       setMonthEndError(apiErrorMessage(error))
     } finally {
@@ -219,6 +229,7 @@ export function DashboardPage() {
         <p className="mt-2 text-xs text-slate-500">
           各月の <ModeBadge mode="予" /> をクリックすると予測金額を編集できます。
           <ModeBadge mode="実" /> はその月に実績取引（定期の自動生成・単発・取込など）がある列です。
+          今年度サマリの月末残高のバッジをクリックすると、その月の月末残高を編集できます。
         </p>
       </section>
 
@@ -287,7 +298,16 @@ export function DashboardPage() {
                     />
                   </td>
                   <td className="px-3 py-2">
-                    <ValueWithMode amount={row.balance.amount} mode={row.balance.mode} />
+                    <ValueWithMode
+                      amount={row.balance.amount}
+                      mode={row.balance.mode}
+                      onMonthlyBalanceEdit={() => {
+                        const iso = rowMonthToDate(row.month)
+                        setMonthEndFormMonth(iso.slice(0, 7))
+                        setMonthEndBalanceDraft(null)
+                        setMonthlyBalanceModalMonth(iso)
+                      }}
+                    />
                   </td>
                 </tr>
               ))}
@@ -303,20 +323,36 @@ export function DashboardPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold">今月の月末残高</h2>
+        <h2 className="mb-2 text-lg font-semibold">月末残高の作成</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          対象月を選んで保存します。今年度サマリの月末残高バッジから開いても同じです。
+        </p>
         <div className="flex flex-wrap items-center gap-3">
+          <label className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-slate-600">対象月</span>
+            <input
+              type="month"
+              value={monthEndFormMonth}
+              onChange={(event) => {
+                setMonthEndFormMonth(event.target.value)
+                setMonthEndBalanceDraft(null)
+              }}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+            />
+          </label>
           <input
             type="number"
             min="0"
-            placeholder="例: 2300000"
+            placeholder={monthEndDashboardState.status === "loading" ? "読み込み中…" : "例: 2300000"}
             value={monthEndBalanceInput}
             onChange={(event) => setMonthEndBalanceDraft(event.target.value)}
-            className="w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            disabled={monthEndDashboardState.status !== "success"}
+            className="w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50"
           />
           <button
             type="button"
             onClick={() => void saveMonthEndBalance()}
-            disabled={monthEndSaving}
+            disabled={monthEndSaving || monthEndDashboardState.status !== "success"}
             className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
           >
             {monthEndSaving ? "保存中…" : "保存"}
@@ -327,11 +363,13 @@ export function DashboardPage() {
 
       {actualEditorOpen && (
         <ActualEditorModal
+          key={month}
           month={month}
           onClose={() => setActualEditorOpen(false)}
           onSaved={() => {
             setActualEditorOpen(false)
             dashboardState.refetch()
+            fiscalActualsState.refetch()
           }}
         />
       )}
@@ -353,6 +391,20 @@ export function DashboardPage() {
           initialAmount={forecastTarget.initialAmount}
           onClose={closeForecast}
           onSaved={onForecastSaved}
+        />
+      )}
+      {monthlyBalanceModalMonth && (
+        <MonthlyBalanceFormModal
+          key={monthlyBalanceModalMonth}
+          month={monthlyBalanceModalMonth}
+          onClose={() => setMonthlyBalanceModalMonth(null)}
+          onSaved={() => {
+            setMonthlyBalanceModalMonth(null)
+            setMonthEndBalanceDraft(null)
+            fiscalActualsState.refetch()
+            monthEndDashboardState.refetch()
+            dashboardState.refetch()
+          }}
         />
       )}
       {bulkEditorOpen && (
@@ -406,23 +458,28 @@ function ValueWithMode({
   amount,
   mode,
   onEditForecast,
+  onMonthlyBalanceEdit,
 }: {
   amount: number
   mode: Mode
   onEditForecast?: () => void
+  onMonthlyBalanceEdit?: () => void
 }) {
+  const onBadgeClick = onMonthlyBalanceEdit ?? onEditForecast
   return (
     <span className="inline-flex items-center gap-2">
       <span>{formatYen(amount)}</span>
-      <ModeBadge mode={mode} onClick={onEditForecast} />
+      <ModeBadge mode={mode} onClick={onBadgeClick} />
     </span>
   )
 }
 
 function ModeBadge({ mode, onClick }: { mode: Mode; onClick?: () => void }) {
+  const hover =
+    onClick && mode === "実" ? "cursor-pointer hover:bg-slate-300" : onClick ? "cursor-pointer hover:bg-indigo-200" : ""
   const className = `rounded-full px-2 py-0.5 text-xs ${
     mode === "実" ? "bg-slate-200 text-slate-700" : "bg-indigo-100 text-indigo-700"
-  } ${onClick ? "cursor-pointer hover:bg-indigo-200" : ""}`
+  } ${hover}`
 
   if (onClick) {
     return (
