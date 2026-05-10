@@ -169,7 +169,7 @@ export function ImportModal({ onClose, onImported }: Props) {
   const [pendingRows, setPendingRows] = useState<PendingImportRow[] | null>(null)
   const [compareMonthInput, setCompareMonthInput] = useState<string>("")
   const [existingExpenses, setExistingExpenses] = useState<ExpenseMaster[] | null>(null)
-  const [existingLoad, setExistingLoad] = useState<"idle" | "loading" | "error">("idle")
+  const [existingLoad, setExistingLoad] = useState<"idle" | "loading" | "success" | "error">("idle")
   const [existingLoadError, setExistingLoadError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -193,15 +193,8 @@ export function ImportModal({ onClose, onImported }: Props) {
   )
 
   useEffect(() => {
-    if (phase !== "preview") {
-      setExistingExpenses(null)
-      setExistingLoad("idle")
-      setExistingLoadError(null)
-      return
-    }
+    if (phase !== "preview") return
     let cancelled = false
-    setExistingLoad("loading")
-    setExistingLoadError(null)
     void api
       .expenses()
       .then((data) => {
@@ -373,6 +366,9 @@ export function ImportModal({ onClose, onImported }: Props) {
       }
       setPendingRows(parsed)
       setCompareMonthInput(minMonthLabel(parsed))
+      setExistingExpenses(null)
+      setExistingLoad("loading")
+      setExistingLoadError(null)
       setPhase("preview")
     } catch (error) {
       setErrorMessage(apiErrorMessage(error))
@@ -384,6 +380,9 @@ export function ImportModal({ onClose, onImported }: Props) {
     setPendingRows(null)
     setCompareMonthInput("")
     setErrorMessage(null)
+    setExistingExpenses(null)
+    setExistingLoad("idle")
+    setExistingLoadError(null)
   }
 
   const executeImport = async () => {

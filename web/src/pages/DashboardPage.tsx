@@ -87,6 +87,8 @@ export function DashboardPage() {
   }
 
   // 選択月の単発のみ台帳を揃える（定期は「定期実績を作成」で今月・来月のみ）
+  /* month のみで再同期。useFetch の戻りオブジェクトは毎レンダーで新参照になり得るため dashboardState / fiscalActualsState 全体は依存に入れない */
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -103,6 +105,7 @@ export function DashboardPage() {
       cancelled = true
     }
   }, [month, fiscalActualsState.refetch, dashboardState.refetch])
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const fetchedMonthEndBalanceInput =
     monthEndDashboardState.status === "success"
