@@ -10,13 +10,19 @@ class Expense < ApplicationRecord
 
   validates :expense_type, :start_month, :amount, presence: true
   validates :amount, numericality: { greater_than_or_equal_to: 0 }
+  validates :memo, length: { maximum: 2000 }, allow_nil: true
   validates :renewal_month, inclusion: { in: 1..12, allow_nil: true }
   validate :end_month_not_before_start_month
   validate :recurring_options
 
   before_validation :normalize_recurring_fields
+  before_validation :strip_memo
 
   private
+
+  def strip_memo
+    self.memo = memo.to_s.strip.presence
+  end
 
   def end_month_not_before_start_month
     return if end_month.blank? || start_month.blank?

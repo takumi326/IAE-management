@@ -34,6 +34,7 @@ create_table "expenses", force: :cascade do |t|
   t.decimal "amount", precision: 15, scale: 0, null: false, default: "0"
   t.date "start_month", null: false
   t.date "end_month"
+  t.text "memo"
   t.datetime "created_at", null: false
   t.datetime "updated_at", null: false
   t.index [ "expense_type" ], name: "index_expenses_on_expense_type"

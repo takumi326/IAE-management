@@ -125,6 +125,11 @@ export function DashboardPage() {
   const monthIncome = forecastsByKey.get(keyOf("income", selectedMonth)) ?? 0
   const monthExpense = forecastsByKey.get(keyOf("expense", selectedMonth)) ?? 0
   const selectedIdx = fiscalMonths.findIndex((m) => m === selectedMonth)
+  const selectedMonthRow = selectedIdx >= 0 ? yearlySummary[selectedIdx] : null
+  const summaryIncomeAmount = selectedMonthRow?.income.amount ?? monthIncome
+  const summaryExpenseAmount = selectedMonthRow?.expense.amount ?? monthExpense
+  const summaryIncomeMode = selectedMonthRow?.income.mode ?? "予"
+  const summaryExpenseMode = selectedMonthRow?.expense.mode ?? "予"
   const expectedBalance =
     selectedIdx >= 0 ? yearlySummary[selectedIdx].balance.amount : monthIncome - monthExpense
   const previousBalance = selectedIdx > 0 ? yearlySummary[selectedIdx - 1].balance.amount : 0
@@ -213,17 +218,25 @@ export function DashboardPage() {
           </article>
           <SummaryCard
             label="収入"
-            amount={monthIncome}
-            mode="予"
+            amount={summaryIncomeAmount}
+            mode={summaryIncomeMode}
             tone="emerald"
-            onEditForecast={() => openForecast({ kind: "income", month: selectedMonth, initialAmount: monthIncome })}
+            onEditForecast={
+              summaryIncomeMode === "予"
+                ? () => openForecast({ kind: "income", month: selectedMonth, initialAmount: monthIncome })
+                : undefined
+            }
           />
           <SummaryCard
             label="支出"
-            amount={monthExpense}
-            mode="予"
+            amount={summaryExpenseAmount}
+            mode={summaryExpenseMode}
             tone="rose"
-            onEditForecast={() => openForecast({ kind: "expense", month: selectedMonth, initialAmount: monthExpense })}
+            onEditForecast={
+              summaryExpenseMode === "予"
+                ? () => openForecast({ kind: "expense", month: selectedMonth, initialAmount: monthExpense })
+                : undefined
+            }
           />
         </div>
         <p className="mt-2 text-xs text-slate-500">
@@ -317,9 +330,7 @@ export function DashboardPage() {
       </section>
 
       <section>
-        <ExpenseBreakdownCard
-          state={dashboardState}
-        />
+        <ExpenseBreakdownCard state={dashboardState} expenseMode={summaryExpenseMode} />
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -495,12 +506,15 @@ type BreakdownItem = { label: string; amount: number; mode: Mode }
 
 function ExpenseBreakdownCard({
   state,
+  expenseMode,
 }: {
   state: {
     status: "loading" | "success" | "error"
     data: DashboardSummary | null
     error: Error | null
   }
+  /** 選択月の支出サマリと同じ「予／実」（内訳バッジを揃える） */
+  expenseMode: Mode
 }) {
   const [view, setView] = useState<"payment" | "category">("payment")
   const dashboard = state.status === "success" ? state.data : null
@@ -518,6 +532,7 @@ function ExpenseBreakdownCard({
         })),
       }))
     : []
+  const hasBreakdownRows = paymentItems.length > 0 || categoryGroups.length > 0
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -538,10 +553,17 @@ function ExpenseBreakdownCard({
       )}
       {state.status === "success" &&
         (view === "payment" ? (
-          <BreakdownList items={paymentItems} accent="text-rose-600" />
+          <BreakdownList items={paymentItems} accent="text-rose-600" badgeMode={expenseMode} />
         ) : (
-          <CategoryBreakdownList groups={categoryGroups} />
+          <CategoryBreakdownList groups={categoryGroups} badgeMode={expenseMode} />
         ))}
+      {state.status === "success" && dashboard && !hasBreakdownRows && (
+        <p className="mt-2 text-xs text-slate-500">
+          {expenseMode === "予"
+            ? "この月は実績ベースの支出内訳がまだありません。上部の支出合計は予測です。"
+            : "実績取引はある設定ですが、内訳を表示できませんでした。"}
+        </p>
+      )}
     </div>
   )
 }
@@ -552,7 +574,7 @@ type LocalCategoryBreakdownGroup = {
   minors: BreakdownItem[]
 }
 
-function CategoryBreakdownList({ groups }: { groups: LocalCategoryBreakdownGroup[] }) {
+function CategoryBreakdownList({ groups, badgeMode }: { groups: LocalCategoryBreakdownGroup[]; badgeMode: Mode }) {
   if (groups.length === 0) {
     return <p className="text-sm text-slate-500">データがありません</p>
   }
@@ -568,7 +590,7 @@ function CategoryBreakdownList({ groups }: { groups: LocalCategoryBreakdownGroup
                 <span className="font-medium">{group.major}</span>
                 <span className="inline-flex items-center gap-2">
                   <span className="font-semibold text-rose-600">{formatYen(total)}</span>
-                  <ModeBadge mode={group.mode} />
+                  <ModeBadge mode={badgeMode} />
                 </span>
               </summary>
               <ul className="border-t border-slate-100">
@@ -577,7 +599,7 @@ function CategoryBreakdownList({ groups }: { groups: LocalCategoryBreakdownGroup
                     <span className="text-slate-700">{minor.label}</span>
                     <span className="inline-flex items-center gap-2">
                       <span className="font-semibold text-rose-600">{formatYen(minor.amount)}</span>
-                      <ModeBadge mode={minor.mode} />
+                      <ModeBadge mode={badgeMode} />
                     </span>
                   </li>
                 ))}
@@ -590,7 +612,7 @@ function CategoryBreakdownList({ groups }: { groups: LocalCategoryBreakdownGroup
   )
 }
 
-function BreakdownList({ items, accent }: { items: BreakdownItem[]; accent: string }) {
+function BreakdownList({ items, accent, badgeMode }: { items: BreakdownItem[]; accent: string; badgeMode: Mode }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500">データがありません</p>
   }
@@ -601,7 +623,7 @@ function BreakdownList({ items, accent }: { items: BreakdownItem[]; accent: stri
           <span>{item.label}</span>
           <div className="flex items-center gap-2">
             <span className={`font-semibold ${accent}`}>{formatYen(item.amount)}</span>
-            <ModeBadge mode={item.mode} />
+            <ModeBadge mode={badgeMode} />
           </div>
         </li>
       ))}
@@ -679,7 +701,7 @@ function toForecastMap(forecasts: Forecast[]): Map<string, number> {
   const map = new Map<string, number>()
   forecasts.forEach((f) => {
     const amount = toNumber(f.amount)
-    map.set(keyOf(f.kind, f.month), Number.isFinite(amount) ? amount : 0)
+    map.set(keyOf(f.kind, normalizeMonthKey(String(f.month))), Number.isFinite(amount) ? amount : 0)
   })
   return map
 }
@@ -694,10 +716,20 @@ function dateToRowMonth(date: string): string {
   return `${y}/${m}`
 }
 
-/** API の month と fiscalMonths のキーを揃える */
+/** API の month と fiscalMonths のキーを揃える（YYYY-MM-DD または ISO日時） */
 function normalizeMonthKey(month: string): string {
-  const head = month.slice(0, 10)
+  const s = String(month).trim()
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
+  if (match) {
+    const [, y, mo] = match
+    return `${y}-${mo}-01`
+  }
+  const d = new Date(s)
+  if (!Number.isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
+  }
+  const head = s.slice(0, 10)
   const [y, mo] = head.split("-")
-  if (!y || !mo) return month
+  if (!y || !mo) return s
   return `${y}-${mo.padStart(2, "0")}-01`
 }

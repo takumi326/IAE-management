@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { api, type IncomeMaster, type IncomeTypeCode, type MinorCategory } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
+import { sortMinorCategories } from "../lib/categorySort.ts"
 import { FieldLabel, FormActions, FormError, Modal } from "./Modal.tsx"
 
 type Props = {
@@ -12,7 +13,7 @@ type Props = {
 
 export function IncomeMasterFormModal({ onClose, onSaved, minors, initial }: Props) {
   const incomeMinors = useMemo(
-    () => minors.filter((m) => m.major_category.kind === "income"),
+    () => sortMinorCategories(minors.filter((m) => m.major_category.kind === "income")),
     [minors],
   )
 

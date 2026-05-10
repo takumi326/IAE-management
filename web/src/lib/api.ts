@@ -38,6 +38,8 @@ export type ExpenseMaster = {
   amount: string | number
   start_month: string
   end_month: string | null
+  /** 任意メモ（マスタ単位） */
+  memo?: string | null
 }
 
 export type IncomeMaster = {
@@ -178,6 +180,7 @@ export type ExpenseMasterInput = {
   amount: number
   start_month: string
   end_month?: string | null
+  memo?: string | null
 }
 
 export type IncomeMasterInput = {

@@ -1,5 +1,6 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { api, type MajorCategory, type MinorCategory } from "../lib/api.ts"
+import { sortMajorCategories } from "../lib/categorySort.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
 import { FieldLabel, FormActions, FormError, Modal } from "./Modal.tsx"
 
@@ -11,7 +12,10 @@ type Props = {
 }
 
 export function MinorCategoryFormModal({ onClose, onSaved, majors, initial }: Props) {
-  const [majorId, setMajorId] = useState<number | "">(initial?.major_category.id ?? majors[0]?.id ?? "")
+  const majorsSorted = useMemo(() => sortMajorCategories(majors), [majors])
+  const [majorId, setMajorId] = useState<number | "">(
+    initial?.major_category.id ?? majorsSorted[0]?.id ?? "",
+  )
   const [name, setName] = useState(initial?.name ?? "")
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -47,8 +51,8 @@ export function MinorCategoryFormModal({ onClose, onSaved, majors, initial }: Pr
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             required
           >
-            {majors.length === 0 && <option value="">先に大カテゴリを登録してください</option>}
-            {majors.map((m) => (
+            {majorsSorted.length === 0 && <option value="">先に大カテゴリを登録してください</option>}
+            {majorsSorted.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.kind === "expense" ? "支出" : "収入"} / {m.name}
               </option>

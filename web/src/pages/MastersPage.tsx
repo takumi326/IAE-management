@@ -11,6 +11,7 @@ import {
 } from "../lib/api.ts"
 import { useFetch } from "../lib/useFetch.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
+import { sortMajorCategories, sortMinorCategories } from "../lib/categorySort.ts"
 import {
   formatPaymentMethodSchedule,
   formatPaymentMethodTypeLabel,
@@ -91,7 +92,9 @@ function CategoriesSection() {
   if (result.status === "loading") return <Loading label="カテゴリを読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
-  const [majors, minors] = result.data
+  const [majorsRaw, minorsRaw] = result.data
+  const majors = sortMajorCategories(majorsRaw)
+  const minors = sortMinorCategories(minorsRaw)
   const handleSaved = () => {
     setOpenModal(null)
     setEditingMajor(null)
@@ -318,6 +321,32 @@ function PaymentMethodsSection() {
   )
 }
 
+/** 大カテゴリ名順の折りたたみグループ（各行は小カテゴリ名順） */
+function groupMastersByMajor<T extends { id: number; minor_category_id: number }>(
+  rows: T[],
+  minorMap: Map<number, MinorCategory>,
+): { majorName: string; rows: T[] }[] {
+  const byMajor = new Map<string, T[]>()
+  for (const row of rows) {
+    const minor = minorMap.get(row.minor_category_id)
+    const majorName = minor?.major_category.name ?? "—"
+    const list = byMajor.get(majorName) ?? []
+    list.push(row)
+    byMajor.set(majorName, list)
+  }
+  return [...byMajor.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, "ja"))
+    .map(([majorName, list]) => ({
+      majorName,
+      rows: [...list].sort((r1, r2) => {
+        const n1 = minorMap.get(r1.minor_category_id)?.name ?? ""
+        const n2 = minorMap.get(r2.minor_category_id)?.name ?? ""
+        const c = n1.localeCompare(n2, "ja")
+        return c !== 0 ? c : r1.id - r2.id
+      }),
+    }))
+}
+
 function ExpenseMastersSection() {
   const loader = useCallback(
     () => Promise.all([api.expenses(), api.minorCategories(), api.paymentMethods()]),
@@ -333,7 +362,8 @@ function ExpenseMastersSection() {
   if (result.status === "loading") return <Loading label="支出を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
-  const [expenses, minors, methods] = result.data
+  const [expenses, minorsRaw, methods] = result.data
+  const minors = sortMinorCategories(minorsRaw)
   const minorMap = buildMap(minors, (m) => m.id)
   const methodMap = buildMap(methods, (m) => m.id)
   const filteredExpenses = expenses.filter((row) => filter === "all" || row.expense_type === filter)
@@ -361,42 +391,85 @@ function ExpenseMastersSection() {
         current={filter}
         onChange={setFilter}
       />
-      <Table
-        head={["カテゴリ", "種別", "周期", "金額", "支払方法", "開始月", "終了月", ""]}
-        rows={filteredExpenses.map((row) => [
-          formatCategory(minorMap.get(row.minor_category_id)),
-          formatRecurringTypeLabel(row.expense_type),
-          formatExpenseCycleCell(row),
-          formatAmountCell(row.amount),
-          methodMap.get(row.payment_method_id)?.name ?? "—",
-          formatMonthCell(row.start_month),
-          row.end_month ? formatMonthCell(row.end_month) : "—",
-          <div key={`expense-actions-${row.id}`} className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
-              onClick={() => setDetail(row)}
-            >
-              詳細
-            </button>
-            <button
-              type="button"
-              className={`${actionButtonBaseClass} border-slate-300 text-slate-700 hover:bg-slate-50`}
-              onClick={() => setEditing(row)}
-            >
-              編集
-            </button>
-            <button
-              type="button"
-              className={`${actionButtonBaseClass} border-rose-300 text-rose-700 hover:bg-rose-50`}
-              onClick={() => onDelete(row)}
-            >
-              削除
-            </button>
-          </div>,
-        ])}
-        emptyMessage="条件に一致する支出がありません"
-      />
+      {filteredExpenses.length === 0 ? (
+        <p className="text-sm text-slate-500">条件に一致する支出がありません</p>
+      ) : (
+        <ul className="space-y-2">
+          {groupMastersByMajor(filteredExpenses, minorMap).map(({ majorName, rows }) => (
+            <li key={majorName} className="rounded-lg border border-slate-200">
+              <details open className="group">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="font-medium text-slate-800">{majorName}</span>
+                  <span className="text-xs text-slate-500">{rows.length}件</span>
+                </summary>
+                <div className="overflow-x-auto border-t border-slate-100">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">小カテゴリ</th>
+                        <th className="px-3 py-2">種別</th>
+                        <th className="px-3 py-2">周期</th>
+                        <th className="px-3 py-2">金額</th>
+                        <th className="px-3 py-2">支払方法</th>
+                        <th className="px-3 py-2">メモ</th>
+                        <th className="px-3 py-2">開始月</th>
+                        <th className="px-3 py-2">終了月</th>
+                        <th className="px-3 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {rows.map((row) => (
+                        <tr key={row.id}>
+                          <td className="px-3 py-2 text-slate-800">
+                            {minorMap.get(row.minor_category_id)?.name ?? "—"}
+                          </td>
+                          <td className="px-3 py-2">{formatRecurringTypeLabel(row.expense_type)}</td>
+                          <td className="px-3 py-2">{formatExpenseCycleCell(row)}</td>
+                          <td className="px-3 py-2">{formatAmountCell(row.amount)}</td>
+                          <td className="px-3 py-2">{methodMap.get(row.payment_method_id)?.name ?? "—"}</td>
+                          <td
+                            className="max-w-[10rem] truncate px-3 py-2 text-slate-600"
+                            title={row.memo?.trim() ? row.memo.trim() : undefined}
+                          >
+                            {formatMemoCell(row.memo)}
+                          </td>
+                          <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
+                          <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
+                                onClick={() => setDetail(row)}
+                              >
+                                詳細
+                              </button>
+                              <button
+                                type="button"
+                                className={`${actionButtonBaseClass} border-slate-300 text-slate-700 hover:bg-slate-50`}
+                                onClick={() => setEditing(row)}
+                              >
+                                編集
+                              </button>
+                              <button
+                                type="button"
+                                className={`${actionButtonBaseClass} border-rose-300 text-rose-700 hover:bg-rose-50`}
+                                onClick={() => onDelete(row)}
+                              >
+                                削除
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
       {actionError && <p className="mt-3 text-sm text-rose-700">{actionError}</p>}
       {open && (
         <ExpenseMasterFormModal
@@ -441,7 +514,8 @@ function IncomeMastersSection() {
   if (result.status === "loading") return <Loading label="収入を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
-  const [incomes, minors] = result.data
+  const [incomes, minorsRaw] = result.data
+  const minors = sortMinorCategories(minorsRaw)
   const minorMap = buildMap(minors, (m) => m.id)
   const filteredIncomes = incomes.filter((row) => filter === "all" || row.income_type === filter)
   const handleSaved = () => {
@@ -468,40 +542,74 @@ function IncomeMastersSection() {
         current={filter}
         onChange={setFilter}
       />
-      <Table
-        head={["カテゴリ", "種別", "金額", "開始月", "終了月", ""]}
-        rows={filteredIncomes.map((row: IncomeMaster) => [
-          formatCategory(minorMap.get(row.minor_category_id)),
-          formatRecurringTypeLabel(row.income_type),
-          formatAmountCell(row.amount),
-          formatMonthCell(row.start_month),
-          row.end_month ? formatMonthCell(row.end_month) : "—",
-          <div key={`income-actions-${row.id}`} className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
-              onClick={() => setDetail(row)}
-            >
-              詳細
-            </button>
-            <button
-              type="button"
-              className={`${actionButtonBaseClass} border-slate-300 text-slate-700 hover:bg-slate-50`}
-              onClick={() => setEditing(row)}
-            >
-              編集
-            </button>
-            <button
-              type="button"
-              className={`${actionButtonBaseClass} border-rose-300 text-rose-700 hover:bg-rose-50`}
-              onClick={() => onDelete(row)}
-            >
-              削除
-            </button>
-          </div>,
-        ])}
-        emptyMessage="条件に一致する収入がありません"
-      />
+      {filteredIncomes.length === 0 ? (
+        <p className="text-sm text-slate-500">条件に一致する収入がありません</p>
+      ) : (
+        <ul className="space-y-2">
+          {groupMastersByMajor(filteredIncomes, minorMap).map(({ majorName, rows }) => (
+            <li key={majorName} className="rounded-lg border border-slate-200">
+              <details open className="group">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <span className="font-medium text-slate-800">{majorName}</span>
+                  <span className="text-xs text-slate-500">{rows.length}件</span>
+                </summary>
+                <div className="overflow-x-auto border-t border-slate-100">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">小カテゴリ</th>
+                        <th className="px-3 py-2">種別</th>
+                        <th className="px-3 py-2">金額</th>
+                        <th className="px-3 py-2">開始月</th>
+                        <th className="px-3 py-2">終了月</th>
+                        <th className="px-3 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {rows.map((row: IncomeMaster) => (
+                        <tr key={row.id}>
+                          <td className="px-3 py-2 text-slate-800">
+                            {minorMap.get(row.minor_category_id)?.name ?? "—"}
+                          </td>
+                          <td className="px-3 py-2">{formatRecurringTypeLabel(row.income_type)}</td>
+                          <td className="px-3 py-2">{formatAmountCell(row.amount)}</td>
+                          <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
+                          <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className={`${actionButtonBaseClass} border-indigo-300 text-indigo-700 hover:bg-indigo-50`}
+                                onClick={() => setDetail(row)}
+                              >
+                                詳細
+                              </button>
+                              <button
+                                type="button"
+                                className={`${actionButtonBaseClass} border-slate-300 text-slate-700 hover:bg-slate-50`}
+                                onClick={() => setEditing(row)}
+                              >
+                                編集
+                              </button>
+                              <button
+                                type="button"
+                                className={`${actionButtonBaseClass} border-rose-300 text-rose-700 hover:bg-rose-50`}
+                                onClick={() => onDelete(row)}
+                              >
+                                削除
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
       {actionError && <p className="mt-3 text-sm text-rose-700">{actionError}</p>}
       {open && (
         <IncomeMasterFormModal
@@ -532,6 +640,12 @@ function IncomeMastersSection() {
 function formatCategory(minor: MinorCategory | undefined): string {
   if (!minor) return "—"
   return `${minor.major_category.name} / ${minor.name}`
+}
+
+function formatMemoCell(memo: string | null | undefined): string {
+  if (memo == null || memo.trim() === "") return "—"
+  const t = memo.trim()
+  return t.length > 40 ? `${t.slice(0, 40)}…` : t
 }
 
 function formatMonthCell(date: string): string {
