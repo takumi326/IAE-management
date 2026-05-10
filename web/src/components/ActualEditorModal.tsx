@@ -74,7 +74,7 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
         <div className="mb-4 flex items-start justify-between gap-2">
           <div>
             <h3 className="text-lg font-semibold">単発の支出を追加</h3>
-            <p className="mt-1 text-xs text-slate-500">支払いは「月」で指定します（日付は不要）。</p>
+            <p className="mt-1 text-xs text-slate-500">支払は「月」で指定します（日付は不要）。</p>
           </div>
           <button
             type="button"
@@ -138,7 +138,7 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
           </label>
 
           <label className="block text-sm">
-            <span className="text-slate-600">支払い月</span>
+            <span className="text-slate-600">支払月</span>
             <input
               type="month"
               value={entryMonth}

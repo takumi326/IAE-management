@@ -184,7 +184,7 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
         </label>
         {expenseType === "one_time" ? (
           <label className="block text-sm">
-            <FieldLabel>支払い月</FieldLabel>
+            <FieldLabel>支払月</FieldLabel>
             <input
               type="month"
               value={oneTimeMonth}

@@ -221,6 +221,12 @@ export type MasterActual = {
   amount: string | number
 }
 
+/** 支出実績の PATCH 用。amount は支出として正の数（API が負の台帳に変換） */
+export type MasterActualUpdateInput = {
+  month: string
+  amount: number
+}
+
 export type BreakdownMode = "実" | "予"
 export type BreakdownItem = {
   label: string
@@ -300,6 +306,10 @@ export const api = {
     patchJson<ExpenseMaster>(`/api/expenses/${id}`, { expense: input }),
   deleteExpense: (id: number) => deleteJson(`/api/expenses/${id}`),
   expenseActuals: (id: number) => fetchJson<MasterActual[]>(`/api/expenses/${id}/actuals`),
+  deleteExpenseActual: (expenseId: number, transactionId: number) =>
+    deleteJson(`/api/expenses/${expenseId}/actuals/${transactionId}`),
+  updateExpenseActual: (expenseId: number, transactionId: number, input: MasterActualUpdateInput) =>
+    patchJson<MasterActual>(`/api/expenses/${expenseId}/actuals/${transactionId}`, { actual: input }),
 
   createIncome: (input: IncomeMasterInput) =>
     postJson<IncomeMaster>("/api/incomes", { income: input }),
@@ -307,6 +317,10 @@ export const api = {
     patchJson<IncomeMaster>(`/api/incomes/${id}`, { income: input }),
   deleteIncome: (id: number) => deleteJson(`/api/incomes/${id}`),
   incomeActuals: (id: number) => fetchJson<MasterActual[]>(`/api/incomes/${id}/actuals`),
+  deleteIncomeActual: (incomeId: number, transactionId: number) =>
+    deleteJson(`/api/incomes/${incomeId}/actuals/${transactionId}`),
+  updateIncomeActual: (incomeId: number, transactionId: number, input: MasterActualUpdateInput) =>
+    patchJson<MasterActual>(`/api/incomes/${incomeId}/actuals/${transactionId}`, { actual: input }),
 
   upsertForecast: (input: UpsertForecastInput) =>
     postJson<Forecast>("/api/forecasts/upsert", { forecast: input }),

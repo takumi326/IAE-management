@@ -1,7 +1,7 @@
 module Api
   class ExpensesController < ApplicationController
-    before_action :set_expense, only: [ :update, :destroy, :actuals ]
-    before_action :ensure_expense!, only: [ :update, :destroy, :actuals ]
+    before_action :set_expense, only: [ :update, :destroy, :actuals, :update_actual, :destroy_actual ]
+    before_action :ensure_expense!, only: [ :update, :destroy, :actuals, :update_actual, :destroy_actual ]
 
     def index
       expenses = Expense.joins(:minor_category)
@@ -38,18 +38,84 @@ module Api
                      .includes(:ledger_transaction)
                      .order(Arel.sql("transactions.month ASC, expense_transactions.id ASC"))
       render json: {
-        data: rows.map do |row|
-          tx = row.ledger_transaction
-          {
-            transaction_id: tx.id,
-            month: tx.month,
-            amount: tx.amount.to_d.abs
-          }
-        end
+        data: rows.map { |row| expense_actual_row_json(row.ledger_transaction) }
       }
     end
 
+    def update_actual
+      tx_id = Integer(params[:transaction_id])
+      et = @expense.expense_transactions.find_by(transaction_id: tx_id)
+      unless et
+        render json: { error: { code: "not_found", message: "この支出に紐づく実績取引が見つかりません" } }, status: :not_found
+        return
+      end
+
+      attrs = actual_ledger_params
+      tx = et.ledger_transaction
+      new_month = attrs[:month].present? ? Date.parse(attrs[:month]).beginning_of_month : tx.month
+      new_amount =
+        if attrs[:amount].present?
+          -attrs[:amount].to_d.abs
+        else
+          tx.amount
+        end
+
+      if duplicate_expense_ledger_month?(expense: @expense, month: new_month, except_transaction_id: tx.id)
+        render json: {
+          error: { code: "duplicate_month", message: "同じ月に別の実績が既にあります" }
+        }, status: :unprocessable_entity
+        return
+      end
+
+      tx.month = new_month
+      tx.amount = new_amount
+      if tx.save
+        render json: { data: expense_actual_row_json(tx) }
+      else
+        render json: {
+          error: { code: "validation_error", message: "実績の更新に失敗しました", details: tx.errors }
+        }, status: :unprocessable_entity
+      end
+    rescue ArgumentError, TypeError
+      render json: { error: { code: "bad_request", message: "transaction_id または日付・金額が不正です" } }, status: :bad_request
+    end
+
+    # 重複した実績取引を1件ずつ削除（台帳 Transaction ごと破棄）
+    def destroy_actual
+      tx_id = Integer(params[:transaction_id])
+      et = @expense.expense_transactions.find_by(transaction_id: tx_id)
+      unless et
+        render json: { error: { code: "not_found", message: "この支出に紐づく実績取引が見つかりません" } }, status: :not_found
+        return
+      end
+
+      et.ledger_transaction.destroy!
+      head :no_content
+    rescue ArgumentError, TypeError
+      render json: { error: { code: "bad_request", message: "transaction_id が不正です" } }, status: :bad_request
+    end
+
     private
+
+    def expense_actual_row_json(tx)
+      {
+        transaction_id: tx.id,
+        month: tx.month,
+        amount: tx.amount.to_d.abs
+      }
+    end
+
+    def actual_ledger_params
+      p = params.require(:actual).permit(:month, :amount)
+      { month: p[:month].to_s.presence, amount: p[:amount].to_s.presence }
+    end
+
+    def duplicate_expense_ledger_month?(expense:, month:, except_transaction_id:)
+      expense.expense_transactions
+             .joins(:ledger_transaction)
+             .where.not(transaction_id: except_transaction_id)
+             .exists?(transactions: { month: month })
+    end
 
     def set_expense
       @expense = Expense.find_by(id: params[:id])

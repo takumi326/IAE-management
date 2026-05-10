@@ -22,11 +22,15 @@ Rails.application.routes.draw do
     resources :expenses, only: [ :index, :create, :update, :destroy ] do
       member do
         get :actuals
+        patch "actuals/:transaction_id", action: :update_actual
+        delete "actuals/:transaction_id", action: :destroy_actual
       end
     end
     resources :incomes, only: [ :index, :create, :update, :destroy ] do
       member do
         get :actuals
+        patch "actuals/:transaction_id", action: :update_actual
+        delete "actuals/:transaction_id", action: :destroy_actual
       end
     end
 

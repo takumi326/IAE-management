@@ -13,7 +13,7 @@ export const IMPORT_PROMPT_PLACEHOLDERS = {
 const backtick = "`"
 
 export const DEFAULT_IMPORT_PROMPT_TEMPLATE = [
-  "次の支払い明細を、JSONの配列だけにしてください（説明・" + backtick + backtick + backtick + "・コメントは禁止）。",
+  "次の支払明細を、JSONの配列だけにしてください（説明・" + backtick + backtick + backtick + "・コメントは禁止）。",
   "",
   "1行＝単発支出1件。支払方法はすべて「{{PAYMENT_METHOD_NAME}}」固定なので JSON には含めない。",
   "キーは次のとおり:",
