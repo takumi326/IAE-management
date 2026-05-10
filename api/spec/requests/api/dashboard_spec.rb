@@ -89,6 +89,7 @@ RSpec.describe "Api::Dashboard", type: :request do
       expect(rows.size).to eq(12)
       june_row = rows.find { |r| r.fetch("month") == "2026-06-01" }
       expect(june_row.fetch("has_expense_actual")).to be(true)
+      expect(june_row.fetch("has_one_time_expense_actual")).to be(true)
       expect(june_row.fetch("has_income_actual")).to be(true)
       expect(june_row.fetch("expense_actual").to_i).to eq(4_000)
       expect(june_row.fetch("income_actual").to_i).to eq(50_000)
@@ -103,8 +104,33 @@ RSpec.describe "Api::Dashboard", type: :request do
 
       april_row = rows.find { |r| r.fetch("month") == "2026-04-01" }
       expect(april_row.fetch("has_expense_actual")).to be(false)
+      expect(april_row.fetch("has_one_time_expense_actual")).to be(false)
       expect(april_row.fetch("expense_actual").to_i).to eq(0)
       expect(april_row.fetch("has_monthly_balance")).to be(false)
+    end
+
+    it "marks one-time expense flag false when month has only recurring expense ledger rows" do
+      expense_major = create(:major_category, kind: :expense)
+      expense_minor = create(:minor_category, major_category: expense_major)
+      card = create(:payment_method)
+      recurring = create(:expense,
+                         minor_category: expense_minor,
+                         payment_method: card,
+                         expense_type: :recurring,
+                         recurring_cycle: :monthly,
+                         start_month: Date.new(2026, 1, 1))
+
+      june = Date.new(2026, 6, 1)
+      tx_e = Transaction.create!(month: june, amount: -4_000)
+      ExpenseTransaction.create!(expense: recurring, ledger_transaction: tx_e)
+
+      get "/api/dashboard/fiscal_actuals", params: { month: "2026-06-01" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      june_row = JSON.parse(response.body).fetch("data").find { |r| r.fetch("month") == "2026-06-01" }
+      expect(june_row.fetch("has_expense_actual")).to be(true)
+      expect(june_row.fetch("has_one_time_expense_actual")).to be(false)
+      expect(june_row.fetch("expense_actual").to_i).to eq(4_000)
     end
   end
 end

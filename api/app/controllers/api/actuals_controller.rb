@@ -1,7 +1,9 @@
 module Api
   class ActualsController < ApplicationController
+    include FiscalYearMonths
+
     # month 省略時は「今月」と「翌月」の 2 ヶ月分を同期（定期の取引が無ければ生成）
-    # expense_scope: 省略=all / one_time=単発支出のみ（month 必須） / recurring=定期支出のみ（常に今月・来月の 2 ヶ月。month は無視）
+    # expense_scope: 省略=all / one_time=単発支出のみ（month 必須） / recurring=定期のみ（month があればその月を含む今年度12ヶ月、無ければ今年度基準は当月）
     def sync
       scope = parse_expense_scope
       if scope == :invalid
@@ -56,8 +58,13 @@ module Api
     def sync_months_for(scope)
       case scope
       when :recurring
-        t = Date.current
-        [ t.beginning_of_month, t.next_month.beginning_of_month ]
+        anchor =
+          if params[:month].present?
+            parse_sync_month(params[:month])
+          else
+            Date.current.beginning_of_month
+          end
+        fiscal_month_starts(anchor)
       when :one_time
         [ parse_sync_month(params[:month]) ]
       else

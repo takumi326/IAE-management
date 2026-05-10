@@ -1,5 +1,6 @@
 module Api
   class DashboardController < ApplicationController
+    include FiscalYearMonths
     def show
       month = target_month
 
@@ -25,6 +26,8 @@ module Api
           month: m0.strftime("%Y-%m-%d"),
           has_income_actual: income_ledger_exists?(m0),
           has_expense_actual: expense_ledger_exists?(m0),
+          # ダッシュボードの支出サマリーは「単発が1件でもあれば実・定期のみなら予」に使う
+          has_one_time_expense_actual: one_time_expense_ledger_exists?(m0),
           income_actual: actual_income_total(m0),
           expense_actual: actual_expense_total(m0),
           has_monthly_balance: mb.present?,
@@ -47,20 +50,19 @@ module Api
       Date.current.beginning_of_month
     end
 
-    def fiscal_month_starts(anchor)
-      y = anchor.year
-      m = anchor.month
-      fiscal_year = m >= 4 ? y : y - 1
-      start = Date.new(fiscal_year, 4, 1)
-      (0..11).map { |i| start.advance(months: i) }
-    end
-
     def income_ledger_exists?(month)
       IncomeTransaction.joins(:ledger_transaction).exists?(transactions: { month: month })
     end
 
     def expense_ledger_exists?(month)
       ExpenseTransaction.joins(:ledger_transaction).exists?(transactions: { month: month })
+    end
+
+    def one_time_expense_ledger_exists?(month)
+      ExpenseTransaction
+        .joins(:ledger_transaction, :expense)
+        .merge(Expense.expense_type_one_time)
+        .exists?(transactions: { month: month })
     end
 
     def actual_income_total(month)
