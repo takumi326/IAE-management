@@ -3,8 +3,10 @@
 class MonthlyActualsSyncService
   Result = Struct.new(:created_expense_count, :created_income_count, keyword_init: true)
 
-  def initialize(month:)
+  # expense_scope: :all（既定） / :one_time（単発のみ） / :recurring（定期のみ）
+  def initialize(month:, expense_scope: :all)
     @month = month
+    @expense_scope = expense_scope.to_sym
   end
 
   def call
@@ -47,7 +49,14 @@ class MonthlyActualsSyncService
                     .where("start_month <= ?", @month)
                     .where("end_month IS NULL OR end_month >= ?", @month)
 
-    one_time.or(monthly).or(yearly)
+    case @expense_scope
+    when :one_time
+      one_time
+    when :recurring
+      monthly.or(yearly)
+    else
+      one_time.or(monthly).or(yearly)
+    end
   end
 
   def target_incomes

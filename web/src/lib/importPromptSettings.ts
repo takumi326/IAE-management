@@ -15,9 +15,9 @@ const backtick = "`"
 export const DEFAULT_IMPORT_PROMPT_TEMPLATE = [
   "次の支払明細を、JSONの配列だけにしてください（説明・" + backtick + backtick + backtick + "・コメントは禁止）。",
   "",
-  "1行＝単発支出1件。支払方法はすべて「{{PAYMENT_METHOD_NAME}}」固定なので JSON には含めない。",
+  "1行＝単発支出1件。支払方法はすべて「{{PAYMENT_METHOD_NAME}}」固定（翌月引き落としのクレカ扱い）なので JSON には含めない。",
   "キーは次のとおり:",
-  '- "month": "YYYY-MM"（必須）',
+  '- "month": "YYYY-MM"（必須。**カード利用があった月**。家計簿の実績は翌暦月に計上される）',
   '- "minor_category_id": 数値（必須。下の一覧の id のいずれか。明細の内容に最も近い小カテゴリを選ぶ）',
   '- "amount": 数値（必須。円、0以上。支出はプラスの数で）',
   '- "memo": 文字列（任意。短いメモ）',

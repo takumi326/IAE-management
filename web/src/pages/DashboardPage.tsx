@@ -43,6 +43,8 @@ export function DashboardPage() {
   const [monthEndSaving, setMonthEndSaving] = useState(false)
   const [monthEndError, setMonthEndError] = useState<string | null>(null)
   const [monthlyBalanceModalMonth, setMonthlyBalanceModalMonth] = useState<string | null>(null)
+  const [recurringActualsBusy, setRecurringActualsBusy] = useState(false)
+  const [recurringActualsError, setRecurringActualsError] = useState<string | null>(null)
 
   const forecastState = useFetch<Forecast[]>(() => api.forecasts())
   const dashboardLoader = useCallback(() => api.dashboard(monthInputToDate(month)), [month])
@@ -70,12 +72,28 @@ export function DashboardPage() {
     fiscalActualsState.refetch()
   }
 
-  // 選択月の台帳を揃える（省略時の sync は今月・来月のみのため、単発はここでないと内訳に出ない）
+  const syncRecurringActualsForCurrentNext = async () => {
+    setRecurringActualsBusy(true)
+    setRecurringActualsError(null)
+    try {
+      await api.syncActuals({ expense_scope: "recurring" })
+      await fiscalActualsState.refetch()
+      await dashboardState.refetch()
+    } catch (err) {
+      setRecurringActualsError(apiErrorMessage(err))
+    } finally {
+      setRecurringActualsBusy(false)
+    }
+  }
+
+  // 選択月の単発のみ台帳を揃える（定期は「定期実績を作成」で今月・来月のみ）
+  /* month のみで再同期。useFetch の戻りオブジェクトは毎レンダーで新参照になり得るため dashboardState / fiscalActualsState 全体は依存に入れない */
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
-        await api.syncActuals({ month: monthInputToDate(month) })
+        await api.syncActuals({ month: monthInputToDate(month), expense_scope: "one_time" })
       } catch {
         // 同期失敗時も内訳は読みに行く
       }
@@ -87,6 +105,7 @@ export function DashboardPage() {
       cancelled = true
     }
   }, [month, fiscalActualsState.refetch, dashboardState.refetch])
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const fetchedMonthEndBalanceInput =
     monthEndDashboardState.status === "success"
@@ -264,14 +283,27 @@ export function DashboardPage() {
           <h2 className="min-w-0 flex-1 text-lg font-semibold">
             今年度サマリ（{dateToRowMonth(fiscalMonths[0])}〜{dateToRowMonth(fiscalMonths[fiscalMonths.length - 1])}）
           </h2>
-          <button
-            type="button"
-            onClick={() => setBulkEditorOpen(true)}
-            className="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-          >
-            予測をまとめて編集
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => void syncRecurringActualsForCurrentNext()}
+              disabled={recurringActualsBusy}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {recurringActualsBusy ? "作成中…" : "定期実績を作成"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkEditorOpen(true)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+            >
+              予測をまとめて編集
+            </button>
+          </div>
         </div>
+        {recurringActualsError && (
+          <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{recurringActualsError}</p>
+        )}
         {forecastState.status === "error" && (
           <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
             予測の読み込みに失敗しました: {apiErrorMessage(forecastState.error)}
