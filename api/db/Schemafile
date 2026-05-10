@@ -66,6 +66,13 @@ create_table "forecasts", force: :cascade do |t|
   t.index [ "month", "kind" ], name: "index_forecasts_on_month_and_kind", unique: true
 end
 
+create_table "forecast_defaults", force: :cascade do |t|
+  t.decimal "expense_amount", precision: 15, scale: 0, null: false, default: "200000"
+  t.decimal "income_amount", precision: 15, scale: 0, null: false, default: "335000"
+  t.datetime "created_at", null: false
+  t.datetime "updated_at", null: false
+end
+
 create_table "transactions", force: :cascade do |t|
   t.date "month", null: false
   t.decimal "amount", precision: 15, scale: 0, null: false
@@ -120,3 +127,5 @@ add_check_constraint "payment_methods", "method_type IN ('card', 'bank_debit', '
 add_check_constraint "payment_methods", "closing_day IS NULL OR (closing_day >= 1 AND closing_day <= 31)", name: "payment_methods_closing_day_check"
 add_check_constraint "payment_methods", "debit_day IS NULL OR (debit_day >= 1 AND debit_day <= 31)", name: "payment_methods_debit_day_check"
 add_check_constraint "forecasts", "kind IN (0, 1)", name: "forecasts_kind_check"
+add_check_constraint "forecast_defaults", "expense_amount >= 0", name: "forecast_defaults_expense_amount_check"
+add_check_constraint "forecast_defaults", "income_amount >= 0", name: "forecast_defaults_income_amount_check"

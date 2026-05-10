@@ -19,7 +19,22 @@ module Api
       end
     end
 
+    # 今年度（4月〜翌3月）で (kind, month) が無い予測だけ、ForecastDefault の金額で作成する
+    def fill_missing
+      anchor = fill_missing_anchor_month
+      result = FillMissingForecastsService.new(anchor_month: anchor).call
+      render json: { data: { created_count: result.created_count, anchor_month: anchor.to_s } }
+    end
+
     private
+
+    def fill_missing_anchor_month
+      return Date.current.beginning_of_month if params[:month].blank?
+
+      Date.parse(params[:month]).beginning_of_month
+    rescue Date::Error
+      Date.current.beginning_of_month
+    end
 
     def upsert_params
       params.expect(forecast: [ :kind, :month, :amount ])

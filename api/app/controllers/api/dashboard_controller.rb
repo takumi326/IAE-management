@@ -13,6 +13,23 @@ module Api
       }
     end
 
+    # 今年度（4月〜翌3月）の各月について、実績取引の有無と金額（無い列は予測で補完する前提）
+    def fiscal_actuals
+      anchor = target_month
+      data = fiscal_month_starts(anchor).map do |m|
+        m0 = m.beginning_of_month
+        {
+          month: m0,
+          has_income_actual: income_ledger_exists?(m0),
+          has_expense_actual: expense_ledger_exists?(m0),
+          income_actual: actual_income_total(m0),
+          expense_actual: actual_expense_total(m0)
+        }
+      end
+
+      render json: { data: data }
+    end
+
     private
 
     def target_month
@@ -22,6 +39,34 @@ module Api
       Date.parse(value).beginning_of_month
     rescue Date::Error
       Date.current.beginning_of_month
+    end
+
+    def fiscal_month_starts(anchor)
+      y = anchor.year
+      m = anchor.month
+      fiscal_year = m >= 4 ? y : y - 1
+      start = Date.new(fiscal_year, 4, 1)
+      (0..11).map { |i| start.advance(months: i) }
+    end
+
+    def income_ledger_exists?(month)
+      IncomeTransaction.joins(:ledger_transaction).exists?(transactions: { month: month })
+    end
+
+    def expense_ledger_exists?(month)
+      ExpenseTransaction.joins(:ledger_transaction).exists?(transactions: { month: month })
+    end
+
+    def actual_income_total(month)
+      IncomeTransaction.joins(:ledger_transaction)
+                         .where(transactions: { month: month })
+                         .sum("transactions.amount").to_d.to_i
+    end
+
+    def actual_expense_total(month)
+      ExpenseTransaction.joins(:ledger_transaction)
+                        .where(transactions: { month: month })
+                        .sum("transactions.amount").to_d.abs.to_i
     end
 
     def expense_rows(month)

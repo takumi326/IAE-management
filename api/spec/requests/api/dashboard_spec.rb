@@ -53,4 +53,36 @@ RSpec.describe "Api::Dashboard", type: :request do
       expect(data.fetch("monthly_balance").to_f).to eq(1_234_567.0)
     end
   end
+
+  describe "GET /api/dashboard/fiscal_actuals" do
+    it "returns per-month ledger flags and totals for the fiscal year of anchor month" do
+      expense_major = create(:major_category, kind: :expense)
+      expense_minor = create(:minor_category, major_category: expense_major)
+      income_minor = create(:minor_category, major_category: create(:major_category, kind: :income))
+      card = create(:payment_method)
+      expense = create(:expense, minor_category: expense_minor, payment_method: card)
+      income = create(:income, minor_category: income_minor)
+
+      june = Date.new(2026, 6, 1)
+      tx_e = Transaction.create!(month: june, amount: -4_000)
+      tx_i = Transaction.create!(month: june, amount: 50_000)
+      ExpenseTransaction.create!(expense: expense, ledger_transaction: tx_e)
+      IncomeTransaction.create!(income: income, ledger_transaction: tx_i)
+
+      get "/api/dashboard/fiscal_actuals", params: { month: "2026-06-01" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      rows = JSON.parse(response.body).fetch("data")
+      expect(rows.size).to eq(12)
+      june_row = rows.find { |r| r.fetch("month") == "2026-06-01" }
+      expect(june_row.fetch("has_expense_actual")).to be(true)
+      expect(june_row.fetch("has_income_actual")).to be(true)
+      expect(june_row.fetch("expense_actual").to_i).to eq(4_000)
+      expect(june_row.fetch("income_actual").to_i).to eq(50_000)
+
+      april_row = rows.find { |r| r.fetch("month") == "2026-04-01" }
+      expect(april_row.fetch("has_expense_actual")).to be(false)
+      expect(april_row.fetch("expense_actual").to_i).to eq(0)
+    end
+  end
 end

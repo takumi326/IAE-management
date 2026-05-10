@@ -33,11 +33,16 @@ Rails.application.routes.draw do
     resources :forecasts, only: [ :index ] do
       collection do
         post :upsert
+        post :fill_missing
       end
     end
 
+    get "forecast_defaults", to: "forecast_defaults#show"
+    patch "forecast_defaults", to: "forecast_defaults#update"
+
     post "actuals/sync", to: "actuals#sync"
     get "dashboard", to: "dashboard#show"
+    get "dashboard/fiscal_actuals", to: "dashboard#fiscal_actuals"
     delete "session", to: "sessions#destroy"
 
     resources :monthly_balances, only: [ :index ] do

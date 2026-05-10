@@ -1,6 +1,22 @@
 module Api
   class MonthlyBalancesController < ApplicationController
     def index
+      if params[:from].present? && params[:to].present?
+        from = parse_month_param(params[:from])
+        to = parse_month_param(params[:to])
+        from, to = to, from if from > to
+        rows_by_month = MonthlyBalance.where(month: from..to).index_by(&:month)
+        data = []
+        cursor = from
+        while cursor <= to
+          row = rows_by_month[cursor]
+          data << balance_json(row || MonthlyBalance.new(month: cursor, amount: 0))
+          cursor = cursor.next_month
+        end
+        render json: { data: data }
+        return
+      end
+
       month = target_month
       row = MonthlyBalance.find_by(month: month)
       render json: { data: [ balance_json(row || MonthlyBalance.new(month: month, amount: 0)) ] }
@@ -32,6 +48,12 @@ module Api
 
     def balance_params
       params.expect(monthly_balance: [ :amount ])
+    end
+
+    def parse_month_param(value)
+      Date.parse(value).beginning_of_month
+    rescue Date::Error
+      Date.current.beginning_of_month
     end
 
     def balance_json(row)

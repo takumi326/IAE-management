@@ -70,7 +70,7 @@ export function ImportModal({ onClose, onImported }: Props) {
           renewal_month: null,
           amount: Math.round(amount),
           start_month: monthDate,
-          end_month: null,
+          end_month: monthDate,
         })
         touchedMonths.add(monthDate)
       }
@@ -96,6 +96,7 @@ export function ImportModal({ onClose, onImported }: Props) {
 - "payment": 支払方法名（文字列）
 
 # 重要ルール
+- 取込はすべて「単発の支出」として登録される（明細1行＝その月の一回きりの支出）
 - JSON以外は一切出力しない
 - 配列で返す（1件でも配列）
 - amount は数値型（文字列にしない）
@@ -138,6 +139,9 @@ export function ImportModal({ onClose, onImported }: Props) {
         </div>
 
         <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+          <p className="text-xs text-slate-600">
+            各行は<strong>単発の支出</strong>としてマスタに追加され、該当する月の実績に反映されます（定期マスタではありません）。
+          </p>
           <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <summary className="cursor-pointer text-sm font-medium text-slate-700">Claude用プロンプト（コピー可）</summary>
             <div className="mt-3 space-y-2">

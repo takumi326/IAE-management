@@ -31,10 +31,7 @@ export default function App() {
 
   useEffect(() => {
     if (IS_DEV) return
-    if (!isSupabaseConfigured || !supabase) {
-      setAuthStatus("guest")
-      return
-    }
+    if (!supabase) return
     const client = supabase
 
     let active = true
