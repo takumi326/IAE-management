@@ -18,7 +18,8 @@ export function LoginPage({ errorMessage }: Props) {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md items-center p-4 sm:p-6">
       <section className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-bold text-slate-800">ログイン</h1>
+        <p className="text-sm font-semibold tracking-wide text-indigo-700">SOLARC</p>
+        <h1 className="mt-1 text-xl font-bold text-slate-800">ログイン</h1>
         <div className="mt-4 space-y-3">
           {errorMessage && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p>}
           <button

@@ -1,6 +1,6 @@
 # API
 
-Rails API for IAE management MVP.
+Rails API for SOLARC.
 
 ## Database (Ridgepole)
 

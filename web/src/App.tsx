@@ -91,7 +91,7 @@ export default function App() {
           <span className="sr-only">メニュー</span>
           <span aria-hidden="true" className="text-lg leading-none">≡</span>
         </button>
-        <h1 className="text-base font-bold">収支管理</h1>
+        <h1 className="text-base font-bold">SOLARC</h1>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[220px_1fr] lg:items-start">
@@ -139,7 +139,7 @@ export default function App() {
 function SidebarHeader() {
   return (
     <div>
-      <h1 className="mb-4 text-lg font-bold">収支管理</h1>
+      <h1 className="mb-4 text-lg font-bold">SOLARC</h1>
     </div>
   )
 }
