@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { api, type ExpenseMaster, type MinorCategory } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
@@ -84,26 +84,27 @@ function buildExistingRows(
   expenses: ExpenseMaster[],
   minors: MinorCategory[],
   compareMonthInput: string,
-  pendingRows: PendingImportRow[],
+  pendingRowsForDuplicate: PendingImportRow[],
 ): ExistingExpenseRow[] {
   const monthFirst = `${compareMonthInput}-01`
-  const filtered = expenses.filter((e) => expenseAppliesToAccrualMonth(e, monthFirst))
-  return filtered.map((e, idx) => {
+  const filtered = expenses.filter(
+    (e) => e.expense_type === "one_time" && expenseAppliesToAccrualMonth(e, monthFirst),
+  )
+  const mapped = filtered.map((e) => {
     const minor = minors.find((m) => m.id === e.minor_category_id)
     const categoryPath = minor
       ? `${minor.major_category.name} / ${minor.name}`
       : `小カテゴリ id:${e.minor_category_id}`
     const amount = Math.round(Number(e.amount))
-    const monthLabel =
-      e.expense_type === "one_time" ? accrualMonthFirstFromApi(e.start_month).slice(0, 7) : compareMonthInput
+    const monthLabel = accrualMonthFirstFromApi(e.start_month).slice(0, 7)
     const memoRaw = e.memo != null ? String(e.memo).trim() : ""
     const memo = memoRaw === "" ? null : memoRaw
-    const duplicateWithPending = pendingRows.some(
+    const duplicateWithPending = pendingRowsForDuplicate.some(
       (pr) => pr.monthLabel === compareMonthInput && pr.minor.id === e.minor_category_id && pr.amount === amount,
     )
     return {
       id: e.id,
-      rowIndex: idx + 1,
+      rowIndex: 0,
       monthLabel,
       categoryPath,
       amount,
@@ -112,6 +113,92 @@ function buildExistingRows(
       duplicateWithPending,
     }
   })
+  mapped.sort((a, b) => {
+    const dup = Number(b.duplicateWithPending) - Number(a.duplicateWithPending)
+    if (dup !== 0) return dup
+    const cat = a.categoryPath.localeCompare(b.categoryPath, "ja")
+    if (cat !== 0) return cat
+    if (a.amount !== b.amount) return a.amount - b.amount
+    return a.id - b.id
+  })
+  return mapped.map((row, idx) => ({ ...row, rowIndex: idx + 1 }))
+}
+
+function ImportPendingTable({
+  title,
+  rows,
+  selectedLineNumbers,
+  onToggleLine,
+  onSelectAll,
+  onSelectNone,
+}: {
+  title: string
+  rows: { key: number; lineNumber: number; num: number; month: string; category: string; amount: number; memo: string | null; warn: boolean }[]
+  selectedLineNumbers: ReadonlySet<number>
+  onToggleLine: (lineNumber: number, checked: boolean) => void
+  onSelectAll: () => void
+  onSelectNone: () => void
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+        <h4 className="text-sm font-medium text-slate-800">{title}</h4>
+        <div className="flex gap-2 text-xs">
+          <button type="button" className="font-medium text-indigo-600 hover:text-indigo-500" onClick={onSelectAll}>
+            すべて選択
+          </button>
+          <span className="text-slate-300">|</span>
+          <button type="button" className="font-medium text-slate-600 hover:text-slate-800" onClick={onSelectNone}>
+            すべて外す
+          </button>
+        </div>
+      </div>
+      <div className="min-h-0 max-h-72 flex-1 overflow-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="sticky top-0 z-1 bg-slate-50 text-left text-xs text-slate-500">
+            <tr>
+              <th className="w-10 px-2 py-2" aria-label="取り込む" />
+              <th className="px-2 py-2">#</th>
+              <th className="px-3 py-2">月</th>
+              <th className="px-3 py-2">カテゴリ</th>
+              <th className="px-3 py-2 text-right">金額</th>
+              <th className="px-3 py-2">メモ</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-4 text-center text-xs text-slate-500">
+                  該当する行がありません
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.key} className={r.warn ? "bg-amber-50" : undefined}>
+                  <td className="px-2 py-2 align-middle">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      checked={selectedLineNumbers.has(r.lineNumber)}
+                      onChange={(e) => onToggleLine(r.lineNumber, e.target.checked)}
+                      aria-label={`行${r.lineNumber}を取り込む`}
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-slate-600">{r.num}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.month}</td>
+                  <td className="px-3 py-2 text-slate-800">{r.category}</td>
+                  <td className="px-3 py-2 text-right font-medium">¥{r.amount.toLocaleString("ja-JP")}</td>
+                  <td className="max-w-48 truncate px-3 py-2 text-slate-600" title={r.memo ?? undefined}>
+                    {r.memo ?? "—"}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 function ImportPreviewTable({
@@ -150,7 +237,6 @@ function ImportPreviewTable({
                   <td className="px-3 py-2 text-slate-800">{r.category}</td>
                   <td className="px-3 py-2 text-right font-medium">¥{r.amount.toLocaleString("ja-JP")}</td>
                   <td className="max-w-48 truncate px-3 py-2 text-slate-600" title={r.memo ?? undefined}>
-                    {r.warn ? <span className="font-medium text-amber-800">重複候補 </span> : null}
                     {r.memo ?? "—"}
                   </td>
                 </tr>
@@ -174,6 +260,7 @@ export function ImportModal({ onClose, onImported }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [copyStatus, setCopyStatus] = useState<"idle" | "done" | "error">("idle")
+  const [selectedImportLineNumbers, setSelectedImportLineNumbers] = useState<ReadonlySet<number>>(() => new Set())
   const bundle = useFetch(() => Promise.all([api.minorCategories(), api.paymentMethods(), api.userPreferences()]))
   const expenseMinors = useMemo(
     () =>
@@ -301,21 +388,29 @@ export function ImportModal({ onClose, onImported }: Props) {
     })
   }
 
+  const pendingRowsForDuplicateCheck = useMemo(() => {
+    if (!pendingRows || !/^\d{4}-\d{2}$/.test(compareMonthInput)) return []
+    return pendingRows.filter(
+      (pr) => pr.monthLabel === compareMonthInput && selectedImportLineNumbers.has(pr.lineNumber),
+    )
+  }, [pendingRows, compareMonthInput, selectedImportLineNumbers])
+
   const existingRows = useMemo(() => {
     if (!pendingRows || !existingExpenses || !/^\d{4}-\d{2}$/.test(compareMonthInput)) return []
-    return buildExistingRows(existingExpenses, expenseMinors, compareMonthInput, pendingRows)
-  }, [existingExpenses, expenseMinors, compareMonthInput, pendingRows])
+    return buildExistingRows(existingExpenses, expenseMinors, compareMonthInput, pendingRowsForDuplicateCheck)
+  }, [existingExpenses, expenseMinors, compareMonthInput, pendingRows, pendingRowsForDuplicateCheck])
 
   const pendingDuplicateLineNumbers = useMemo(() => {
     if (!pendingRows || !compareMonthInput) return new Set<number>()
     const set = new Set<number>()
     for (const pr of pendingRows) {
+      if (!selectedImportLineNumbers.has(pr.lineNumber)) continue
       if (pr.monthLabel !== compareMonthInput) continue
       const dup = existingRows.some((er) => er.minorCategoryId === pr.minor.id && er.amount === pr.amount)
       if (dup) set.add(pr.lineNumber)
     }
     return set
-  }, [pendingRows, compareMonthInput, existingRows])
+  }, [pendingRows, compareMonthInput, existingRows, selectedImportLineNumbers])
 
   const leftTableRows = useMemo(
     () =>
@@ -331,19 +426,50 @@ export function ImportModal({ onClose, onImported }: Props) {
     [existingRows],
   )
 
-  const rightTableRows = useMemo(
-    () =>
-      (pendingRows ?? []).map((r) => ({
-        key: r.lineNumber,
-        num: r.lineNumber,
-        month: r.monthLabel,
-        category: r.categoryPath,
-        amount: r.amount,
-        memo: r.memo,
-        warn: pendingDuplicateLineNumbers.has(r.lineNumber),
-      })),
-    [pendingRows, pendingDuplicateLineNumbers],
-  )
+  const rightTableRows = useMemo(() => {
+    if (!pendingRows) return []
+    const mapped = pendingRows.map((r) => ({
+      key: r.lineNumber,
+      lineNumber: r.lineNumber,
+      num: r.lineNumber,
+      month: r.monthLabel,
+      category: r.categoryPath,
+      amount: r.amount,
+      memo: r.memo,
+      warn: pendingDuplicateLineNumbers.has(r.lineNumber),
+    }))
+    mapped.sort((a, b) => {
+      const cat = a.category.localeCompare(b.category, "ja")
+      if (cat !== 0) return cat
+      if (a.amount !== b.amount) return a.amount - b.amount
+      return a.lineNumber - b.lineNumber
+    })
+    return mapped
+  }, [pendingRows, pendingDuplicateLineNumbers])
+
+  const selectedImportCount = selectedImportLineNumbers.size
+  const selectedImportAmount = useMemo(() => {
+    if (!pendingRows) return 0
+    return pendingRows.reduce((s, r) => (selectedImportLineNumbers.has(r.lineNumber) ? s + r.amount : s), 0)
+  }, [pendingRows, selectedImportLineNumbers])
+
+  const toggleImportLine = useCallback((lineNumber: number, checked: boolean) => {
+    setSelectedImportLineNumbers((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(lineNumber)
+      else next.delete(lineNumber)
+      return next
+    })
+  }, [])
+
+  const selectAllImportLines = useCallback(() => {
+    if (!pendingRows) return
+    setSelectedImportLineNumbers(new Set(pendingRows.map((r) => r.lineNumber)))
+  }, [pendingRows])
+
+  const selectNoImportLines = useCallback(() => {
+    setSelectedImportLineNumbers(new Set())
+  }, [])
 
   const onConfirmPreview = () => {
     if (bundle.status !== "success") return
@@ -365,6 +491,7 @@ export function ImportModal({ onClose, onImported }: Props) {
         return
       }
       setPendingRows(parsed)
+      setSelectedImportLineNumbers(new Set(parsed.map((r) => r.lineNumber)))
       setCompareMonthInput(minMonthLabel(parsed))
       setExistingExpenses(null)
       setExistingLoad("loading")
@@ -383,6 +510,7 @@ export function ImportModal({ onClose, onImported }: Props) {
     setExistingExpenses(null)
     setExistingLoad("idle")
     setExistingLoadError(null)
+    setSelectedImportLineNumbers(new Set())
   }
 
   const executeImport = async () => {
@@ -393,6 +521,12 @@ export function ImportModal({ onClose, onImported }: Props) {
       )
       return
     }
+    const rowsToImport = pendingRows.filter((r) => selectedImportLineNumbers.has(r.lineNumber))
+    if (rowsToImport.length === 0) {
+      setErrorMessage("取り込む行を1件以上選んでください")
+      return
+    }
+
     setSubmitting(true)
     setErrorMessage(null)
     try {
@@ -400,7 +534,7 @@ export function ImportModal({ onClose, onImported }: Props) {
         ledger_charge_timing: "next_month",
       })
       const touchedMonths = new Set<string>()
-      for (const row of pendingRows) {
+      for (const row of rowsToImport) {
         await api.createExpense({
           minor_category_id: row.minor.id,
           payment_method_id: fixedPaymentMethod.id,
@@ -475,16 +609,22 @@ export function ImportModal({ onClose, onImported }: Props) {
 
           {phase === "edit" && (
             <>
-              <details className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <summary className="cursor-pointer text-sm font-medium text-slate-700">Claude用プロンプト（コピー可）</summary>
-                <div className="mt-3 space-y-2">
-                  <textarea
-                    readOnly
-                    value={claudePrompt}
-                    rows={16}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
-                  />
-                  <div className="flex items-center justify-between">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-start gap-3">
+                  <details className="min-w-0 flex-1 [&_summary::-webkit-details-marker]:hidden">
+                    <summary className="cursor-pointer list-none text-sm font-medium text-slate-700">
+                      Claude用プロンプトの本文
+                    </summary>
+                    <div className="mt-3">
+                      <textarea
+                        readOnly
+                        value={claudePrompt}
+                        rows={16}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs"
+                      />
+                    </div>
+                  </details>
+                  <div className="flex shrink-0 flex-col items-end gap-1 sm:pt-0.5">
                     <button
                       type="button"
                       onClick={() => void copyPrompt()}
@@ -494,7 +634,7 @@ export function ImportModal({ onClose, onImported }: Props) {
                         fixedPaymentMethod.method_type !== "card" ||
                         expenseMinors.length === 0
                       }
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       プロンプトをコピー
                     </button>
@@ -502,7 +642,7 @@ export function ImportModal({ onClose, onImported }: Props) {
                     {copyStatus === "error" && <p className="text-xs text-rose-700">コピーに失敗しました</p>}
                   </div>
                 </div>
-              </details>
+              </div>
               {errorMessage && (
                 <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p>
               )}
@@ -522,7 +662,7 @@ export function ImportModal({ onClose, onImported }: Props) {
           {phase === "preview" && pendingRows && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-slate-800">
-                左で比較する月を選び、保存済みの支出マスタと今回取り込む内容を並べて確認してください（同一利用月・同一カテゴリ・同一金額は重複候補として色付けします）。
+                左で比較する月を選び、保存済みの<strong>単発</strong>支出と今回取り込む内容を並べて確認してください（定期は出しません）。右のチェックを付けた行だけが取り込まれます（同一利用月・同一カテゴリ・同一金額は行の背景色で示します）。
               </p>
               <label className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-slate-600">比較する月（左の一覧）</span>
@@ -538,12 +678,19 @@ export function ImportModal({ onClose, onImported }: Props) {
                 <p className="text-xs text-rose-700">保存済み支出の取得に失敗: {existingLoadError}</p>
               )}
               <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-                <ImportPreviewTable title="保存済みの支出（マスタ）" rows={leftTableRows} />
-                <ImportPreviewTable title="今回取り込む（単発）" rows={rightTableRows} />
+                <ImportPreviewTable title="保存済みの単発支出" rows={leftTableRows} />
+                <ImportPendingTable
+                  title="今回取り込む（単発）"
+                  rows={rightTableRows}
+                  selectedLineNumbers={selectedImportLineNumbers}
+                  onToggleLine={toggleImportLine}
+                  onSelectAll={selectAllImportLines}
+                  onSelectNone={selectNoImportLines}
+                />
               </div>
               <p className="text-xs text-slate-500">
-                今回取り込む: {pendingRows.length} 件 / 金額計 ¥
-                {pendingRows.reduce((s, r) => s + r.amount, 0).toLocaleString("ja-JP")}
+                取り込み対象: {selectedImportCount} 件 / ¥{selectedImportAmount.toLocaleString("ja-JP")}（JSON 全体{" "}
+                {pendingRows.length} 件 / ¥{pendingRows.reduce((s, r) => s + r.amount, 0).toLocaleString("ja-JP")}）
               </p>
               {errorMessage && (
                 <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p>
@@ -589,10 +736,10 @@ export function ImportModal({ onClose, onImported }: Props) {
                 <button
                   type="button"
                   onClick={() => void executeImport()}
-                  disabled={submitting}
+                  disabled={submitting || selectedImportCount === 0}
                   className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
                 >
-                  {submitting ? "取込中…" : "この内容で取り込む"}
+                  {submitting ? "取込中…" : "選択した行を取り込む"}
                 </button>
               </>
             )}
