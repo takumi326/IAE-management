@@ -357,7 +357,7 @@ function ExpenseMastersSection() {
   const [editing, setEditing] = useState<ExpenseMaster | null>(null)
   const [detail, setDetail] = useState<ExpenseMaster | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<"all" | "recurring" | "one_time">("all")
+  const [filter, setFilter] = useState<"recurring" | "one_time">("one_time")
 
   const loadExpenseDetailActuals = useCallback(() => {
     if (detail == null) return Promise.resolve([] as MasterActual[])
@@ -371,7 +371,7 @@ function ExpenseMastersSection() {
   const minors = sortMinorCategories(minorsRaw)
   const minorMap = buildMap(minors, (m) => m.id)
   const methodMap = buildMap(methods, (m) => m.id)
-  const filteredExpenses = expenses.filter((row) => filter === "all" || row.expense_type === filter)
+  const filteredExpenses = expenses.filter((row) => row.expense_type === filter)
   const handleSaved = () => {
     setOpen(false)
     setEditing(null)
@@ -380,7 +380,7 @@ function ExpenseMastersSection() {
   }
 
   const onDelete = async (row: ExpenseMaster) => {
-    if (!window.confirm("この支出を削除しますか？")) return
+    if (!window.confirm("マスタと紐づく実績（台帳）もまとめて削除します。よろしいですか？")) return
     setActionError(null)
     try {
       await api.deleteExpense(row.id)
@@ -391,7 +391,7 @@ function ExpenseMastersSection() {
   }
 
   return (
-    <Panel title="支出" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
+    <Panel title="支出" actionLabel="＋ 実績を追加" onAction={() => setOpen(true)}>
       <TypeFilterTabs
         current={filter}
         onChange={setFilter}
@@ -522,7 +522,7 @@ function IncomeMastersSection() {
   const [editing, setEditing] = useState<IncomeMaster | null>(null)
   const [detail, setDetail] = useState<IncomeMaster | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<"all" | "recurring" | "one_time">("all")
+  const [filter, setFilter] = useState<"recurring" | "one_time">("one_time")
 
   const loadIncomeDetailActuals = useCallback(() => {
     if (detail == null) return Promise.resolve([] as MasterActual[])
@@ -535,7 +535,7 @@ function IncomeMastersSection() {
   const [incomes, minorsRaw] = result.data
   const minors = sortMinorCategories(minorsRaw)
   const minorMap = buildMap(minors, (m) => m.id)
-  const filteredIncomes = incomes.filter((row) => filter === "all" || row.income_type === filter)
+  const filteredIncomes = incomes.filter((row) => row.income_type === filter)
   const handleSaved = () => {
     setOpen(false)
     setEditing(null)
@@ -544,7 +544,7 @@ function IncomeMastersSection() {
   }
 
   const onDelete = async (row: IncomeMaster) => {
-    if (!window.confirm("この収入を削除しますか？")) return
+    if (!window.confirm("マスタと紐づく実績（台帳）もまとめて削除します。よろしいですか？")) return
     setActionError(null)
     try {
       await api.deleteIncome(row.id)
@@ -555,7 +555,7 @@ function IncomeMastersSection() {
   }
 
   return (
-    <Panel title="収入" actionLabel="＋ 追加" onAction={() => setOpen(true)}>
+    <Panel title="収入" actionLabel="＋ 実績を追加" onAction={() => setOpen(true)}>
       <TypeFilterTabs
         current={filter}
         onChange={setFilter}
@@ -688,19 +688,16 @@ function TypeFilterTabs({
   current,
   onChange,
 }: {
-  current: "all" | "recurring" | "one_time"
-  onChange: (value: "all" | "recurring" | "one_time") => void
+  current: "recurring" | "one_time"
+  onChange: (value: "recurring" | "one_time") => void
 }) {
   return (
     <div className="mb-3 inline-flex rounded-full bg-slate-100 p-0.5 text-xs">
-      <FilterTab active={current === "all"} onClick={() => onChange("all")}>
-        全部
+      <FilterTab active={current === "one_time"} onClick={() => onChange("one_time")}>
+        単発
       </FilterTab>
       <FilterTab active={current === "recurring"} onClick={() => onChange("recurring")}>
         定期
-      </FilterTab>
-      <FilterTab active={current === "one_time"} onClick={() => onChange("one_time")}>
-        単発
       </FilterTab>
     </div>
   )

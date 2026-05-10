@@ -37,7 +37,6 @@ type PendingImportRow = {
 
 type ExistingExpenseRow = {
   id: number
-  rowIndex: number
   monthLabel: string
   categoryPath: string
   amount: number
@@ -104,7 +103,6 @@ function buildExistingRows(
     )
     return {
       id: e.id,
-      rowIndex: 0,
       monthLabel,
       categoryPath,
       amount,
@@ -121,7 +119,7 @@ function buildExistingRows(
     if (a.amount !== b.amount) return a.amount - b.amount
     return a.id - b.id
   })
-  return mapped.map((row, idx) => ({ ...row, rowIndex: idx + 1 }))
+  return mapped
 }
 
 function ImportPendingTable({
@@ -133,7 +131,7 @@ function ImportPendingTable({
   onSelectNone,
 }: {
   title: string
-  rows: { key: number; lineNumber: number; num: number; month: string; category: string; amount: number; memo: string | null; warn: boolean }[]
+  rows: { key: number; lineNumber: number; month: string; category: string; amount: number; memo: string | null; warn: boolean }[]
   selectedLineNumbers: ReadonlySet<number>
   onToggleLine: (lineNumber: number, checked: boolean) => void
   onSelectAll: () => void
@@ -158,7 +156,6 @@ function ImportPendingTable({
           <thead className="sticky top-0 z-1 bg-slate-50 text-left text-xs text-slate-500">
             <tr>
               <th className="w-10 px-2 py-2" aria-label="取り込む" />
-              <th className="px-2 py-2">#</th>
               <th className="px-3 py-2">月</th>
               <th className="px-3 py-2">カテゴリ</th>
               <th className="px-3 py-2 text-right">金額</th>
@@ -168,7 +165,7 @@ function ImportPendingTable({
           <tbody className="divide-y divide-slate-100">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-center text-xs text-slate-500">
+                <td colSpan={5} className="px-3 py-4 text-center text-xs text-slate-500">
                   該当する行がありません
                 </td>
               </tr>
@@ -184,7 +181,6 @@ function ImportPendingTable({
                       aria-label={`行${r.lineNumber}を取り込む`}
                     />
                   </td>
-                  <td className="px-2 py-2 text-slate-600">{r.num}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.month}</td>
                   <td className="px-3 py-2 text-slate-800">{r.category}</td>
                   <td className="px-3 py-2 text-right font-medium">¥{r.amount.toLocaleString("ja-JP")}</td>
@@ -206,7 +202,7 @@ function ImportPreviewTable({
   rows,
 }: {
   title: string
-  rows: { key: string | number; num: number; month: string; category: string; amount: number; memo: string | null; warn: boolean }[]
+  rows: { key: string | number; month: string; category: string; amount: number; memo: string | null; warn: boolean }[]
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200">
@@ -215,7 +211,6 @@ function ImportPreviewTable({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="sticky top-0 z-1 bg-slate-50 text-left text-xs text-slate-500">
             <tr>
-              <th className="px-3 py-2">#</th>
               <th className="px-3 py-2">月</th>
               <th className="px-3 py-2">カテゴリ</th>
               <th className="px-3 py-2 text-right">金額</th>
@@ -225,14 +220,13 @@ function ImportPreviewTable({
           <tbody className="divide-y divide-slate-100">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-xs text-slate-500">
+                <td colSpan={4} className="px-3 py-4 text-center text-xs text-slate-500">
                   該当する行がありません
                 </td>
               </tr>
             ) : (
               rows.map((r) => (
                 <tr key={r.key} className={r.warn ? "bg-amber-50" : undefined}>
-                  <td className="px-3 py-2 text-slate-600">{r.num}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.month}</td>
                   <td className="px-3 py-2 text-slate-800">{r.category}</td>
                   <td className="px-3 py-2 text-right font-medium">¥{r.amount.toLocaleString("ja-JP")}</td>
@@ -416,7 +410,6 @@ export function ImportModal({ onClose, onImported }: Props) {
     () =>
       existingRows.map((er) => ({
         key: er.id,
-        num: er.rowIndex,
         month: er.monthLabel,
         category: er.categoryPath,
         amount: er.amount,
@@ -431,7 +424,6 @@ export function ImportModal({ onClose, onImported }: Props) {
     const mapped = pendingRows.map((r) => ({
       key: r.lineNumber,
       lineNumber: r.lineNumber,
-      num: r.lineNumber,
       month: r.monthLabel,
       category: r.categoryPath,
       amount: r.amount,
@@ -595,10 +587,6 @@ export function ImportModal({ onClose, onImported }: Props) {
         </div>
 
         <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-          <p className="text-xs text-slate-600">
-            各行は<strong>単発の支出</strong>としてマスタに追加されます。JSON の <strong>month</strong> は<strong>カード利用月</strong>（YYYY-MM）です。支払方法は常に
-            <strong> {FIXED_PAYMENT_METHOD_NAME} </strong>（クレジットカード）で、取り込み時に<strong>翌月計上</strong>にそろえたうえで、<strong>実績台帳は翌暦月</strong>に付きます（例: 利用 4 月 → 台帳 5 月）。まず JSON を確認し、問題なければ取り込みます。
-          </p>
           <p className="text-xs text-slate-500">
             Claude 用のプロンプト本文は{" "}
             <Link to="/settings#import-prompt" className="font-medium text-indigo-600 underline hover:text-indigo-500">

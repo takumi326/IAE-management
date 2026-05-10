@@ -71,6 +71,9 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
       } else {
         await api.createExpense(payload)
       }
+      if (expenseType === "one_time") {
+        await api.syncActuals({ month: payload.start_month, expense_scope: "one_time" })
+      }
       onSaved()
     } catch (err) {
       setErrorMessage(apiErrorMessage(err))
@@ -80,7 +83,7 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
   }
 
   return (
-    <Modal title={initial ? "支出を編集" : "支出を追加"} onClose={onClose}>
+    <Modal title={initial ? "実績の編集" : "実績を追加"} onClose={onClose}>
       <form className="space-y-3" onSubmit={onSubmit}>
         <FormError message={errorMessage} />
         <label className="block text-sm">
@@ -130,8 +133,8 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
             }}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           >
-            <option value="recurring">定期</option>
             <option value="one_time">単発</option>
+            <option value="recurring">定期</option>
           </select>
         </label>
         {expenseType === "recurring" && (
