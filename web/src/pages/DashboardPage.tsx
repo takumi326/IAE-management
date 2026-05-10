@@ -45,6 +45,7 @@ export function DashboardPage() {
   const [monthlyBalanceModalMonth, setMonthlyBalanceModalMonth] = useState<string | null>(null)
   const [recurringActualsBusy, setRecurringActualsBusy] = useState(false)
   const [recurringActualsError, setRecurringActualsError] = useState<string | null>(null)
+  const [expenseBreakdownOpen, setExpenseBreakdownOpen] = useState(false)
 
   const forecastState = useFetch<Forecast[]>(() => api.forecasts())
   const dashboardLoader = useCallback(() => api.dashboard(monthInputToDate(month)), [month])
@@ -65,6 +66,7 @@ export function DashboardPage() {
   const setMonthWithReset = (nextMonth: string) => {
     setMonth(nextMonth)
     setMonthEndBalanceDraft(null)
+    setExpenseBreakdownOpen(false)
   }
   const onForecastSaved = () => {
     closeForecast()
@@ -274,6 +276,7 @@ export function DashboardPage() {
                 ? () => openForecast({ kind: "expense", month: selectedMonth, initialAmount: monthExpense })
                 : undefined
             }
+            onActualBadgeClick={summaryExpenseMode === "実" ? () => setExpenseBreakdownOpen(true) : undefined}
           />
         </div>
       </section>
@@ -353,6 +356,17 @@ export function DashboardPage() {
                               })
                           : undefined
                       }
+                      onActualBreakdown={
+                        row.expense.mode === "実"
+                          ? () => {
+                              const nextMonthInput = rowMonthToDate(row.month).slice(0, 7)
+                              setMonth(nextMonthInput)
+                              setMonthEndBalanceDraft(null)
+                              setExpenseBreakdownOpen(true)
+                            }
+                          : undefined
+                      }
+                      actualBreakdownAriaLabel={`${row.month}の支出内訳をモーダルで開く`}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -365,6 +379,7 @@ export function DashboardPage() {
                         setMonthEndBalanceDraft(null)
                         setMonthlyBalanceModalMonth(iso)
                       }}
+                      monthlyBalanceAriaLabel={`${row.month}の月末残高を編集`}
                     />
                   </td>
                 </tr>
@@ -372,10 +387,6 @@ export function DashboardPage() {
             </tbody>
           </table>
         </div>
-      </section>
-
-      <section>
-        <ExpenseBreakdownCard state={dashboardState} expenseMode={summaryExpenseMode} />
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -474,6 +485,34 @@ export function DashboardPage() {
           }}
         />
       )}
+      {expenseBreakdownOpen && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setExpenseBreakdownOpen(false)
+          }}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h3 className="text-lg font-semibold text-slate-900">
+                支出の内訳（{dateToRowMonth(selectedMonth)}）
+              </h3>
+              <button
+                type="button"
+                className="-m-1 flex h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-2xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                onClick={() => setExpenseBreakdownOpen(false)}
+                aria-label="閉じる"
+              >
+                ×
+              </button>
+            </div>
+            <ExpenseBreakdownCard key={month} state={dashboardState} expenseMode={summaryExpenseMode} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -491,19 +530,54 @@ function SummaryCard({
   mode,
   tone,
   onEditForecast,
+  onActualBadgeClick,
 }: {
   label: string
   amount: number
   mode: Mode
   tone: "emerald" | "rose"
   onEditForecast?: () => void
+  /** 支出が「実」のとき、内訳モーダルを開く（予のときは onEditForecast で予測編集） */
+  onActualBadgeClick?: () => void
 }) {
   const t = TONE[tone]
+  const badgeClick = mode === "予" ? onEditForecast : onActualBadgeClick
+  const openBreakdownByWholeCard = mode === "実" && onActualBadgeClick
+
+  if (openBreakdownByWholeCard) {
+    return (
+      <article className={`rounded-xl border border-slate-200 ${t.bg} p-4`}>
+        <button
+          type="button"
+          className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+          onClick={onActualBadgeClick}
+          aria-label={`${label}の内訳をモーダルで開く`}
+        >
+          <div className="flex items-center justify-between">
+            <p className={`text-xs font-medium ${t.text}`}>{label}</p>
+            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">実</span>
+          </div>
+          <p className={`mt-1 text-lg font-semibold ${t.text}`}>{formatYen(amount)}</p>
+        </button>
+      </article>
+    )
+  }
+
   return (
     <article className={`rounded-xl border border-slate-200 ${t.bg} p-4`}>
       <div className="flex items-center justify-between">
         <p className={`text-xs font-medium ${t.text}`}>{label}</p>
-        <ModeBadge mode={mode} onClick={onEditForecast} />
+        <ModeBadge
+          mode={mode}
+          onClick={badgeClick}
+          ariaLabel={
+            mode === "予" && onEditForecast
+              ? `${label}の予測を編集`
+              : mode === "実" && onActualBadgeClick
+                ? `${label}の内訳をモーダルで開く`
+                : undefined
+          }
+        />
       </div>
       <p className={`mt-1 text-lg font-semibold ${t.text}`}>{formatYen(amount)}</p>
     </article>
@@ -515,22 +589,80 @@ function ValueWithMode({
   mode,
   onEditForecast,
   onMonthlyBalanceEdit,
+  onActualBreakdown,
+  actualBreakdownAriaLabel,
+  monthlyBalanceAriaLabel,
 }: {
   amount: number
   mode: Mode
   onEditForecast?: () => void
   onMonthlyBalanceEdit?: () => void
+  /** 今年度サマリの「支出・実」など：内訳モーダルを開く */
+  onActualBreakdown?: () => void
+  actualBreakdownAriaLabel?: string
+  /** 今年度サマリの月末残高セル：ボタン化するときの説明 */
+  monthlyBalanceAriaLabel?: string
 }) {
-  const onBadgeClick = onMonthlyBalanceEdit ?? onEditForecast
+  const badgeClick =
+    onMonthlyBalanceEdit ?? (mode === "実" && onActualBreakdown ? onActualBreakdown : onEditForecast)
+  const badgeAria =
+    onMonthlyBalanceEdit != null
+      ? undefined
+      : mode === "実" && onActualBreakdown
+        ? actualBreakdownAriaLabel ?? "支出の内訳をモーダルで開く"
+        : undefined
+
+  /** 今年度サマリの月末残高：金額＋予／実をまとめて押せる */
+  if (onMonthlyBalanceEdit) {
+    const pillClass =
+      mode === "実"
+        ? "rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700"
+        : "rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700"
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-2 rounded-md border border-transparent px-1 py-0.5 text-left text-inherit hover:bg-slate-100/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+        onClick={onMonthlyBalanceEdit}
+        aria-label={monthlyBalanceAriaLabel ?? "月末残高を編集"}
+      >
+        <span>{formatYen(amount)}</span>
+        <span className={pillClass}>{mode}</span>
+      </button>
+    )
+  }
+
+  /** 今年度サマリの支出「実」：金額だけでは気づきにくいので、金額＋バッジをまとめて押せる */
+  if (mode === "実" && onActualBreakdown) {
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-2 rounded-md border border-transparent px-1 py-0.5 text-left text-inherit hover:bg-slate-100/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+        onClick={onActualBreakdown}
+        aria-label={actualBreakdownAriaLabel ?? "支出の内訳をモーダルで開く"}
+      >
+        <span>{formatYen(amount)}</span>
+        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">実</span>
+      </button>
+    )
+  }
+
   return (
     <span className="inline-flex items-center gap-2">
       <span>{formatYen(amount)}</span>
-      <ModeBadge mode={mode} onClick={onBadgeClick} />
+      <ModeBadge mode={mode} onClick={badgeClick} ariaLabel={badgeAria} />
     </span>
   )
 }
 
-function ModeBadge({ mode, onClick }: { mode: Mode; onClick?: () => void }) {
+function ModeBadge({
+  mode,
+  onClick,
+  ariaLabel,
+}: {
+  mode: Mode
+  onClick?: () => void
+  ariaLabel?: string
+}) {
   const hover =
     onClick && mode === "実" ? "cursor-pointer hover:bg-slate-300" : onClick ? "cursor-pointer hover:bg-indigo-200" : ""
   const className = `rounded-full px-2 py-0.5 text-xs ${
@@ -539,7 +671,7 @@ function ModeBadge({ mode, onClick }: { mode: Mode; onClick?: () => void }) {
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={className} aria-label={`${mode}を編集`}>
+      <button type="button" onClick={onClick} className={className} aria-label={ariaLabel ?? `${mode}を編集`}>
         {mode}
       </button>
     )
@@ -561,7 +693,7 @@ function ExpenseBreakdownCard({
   /** 選択月の支出サマリと同じ「予／実」（内訳バッジを揃える） */
   expenseMode: Mode
 }) {
-  const [view, setView] = useState<"payment" | "category" | "lines">("payment")
+  const [breakdownView, setBreakdownView] = useState<"payment" | "category" | "lines">("payment")
   const dashboard = state.status === "success" ? state.data : null
   const paymentItems = dashboard
     ? dashboard.expense_by_payment.map((item) => ({ label: item.label, amount: toNumber(item.amount), mode: item.mode as Mode }))
@@ -581,17 +713,17 @@ function ExpenseBreakdownCard({
   const hasBreakdownRows = paymentItems.length > 0 || categoryGroups.length > 0 || lineItems.length > 0
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-semibold">支出</h2>
+        <h2 className="text-base font-semibold text-slate-800">表示月の支出</h2>
         <div className="inline-flex flex-wrap rounded-full bg-slate-100 p-0.5 text-xs">
-          <BreakdownTab active={view === "payment"} onClick={() => setView("payment")}>
+          <BreakdownTab active={breakdownView === "payment"} onClick={() => setBreakdownView("payment")}>
             支払方法別
           </BreakdownTab>
-          <BreakdownTab active={view === "category"} onClick={() => setView("category")}>
+          <BreakdownTab active={breakdownView === "category"} onClick={() => setBreakdownView("category")}>
             カテゴリ別
           </BreakdownTab>
-          <BreakdownTab active={view === "lines"} onClick={() => setView("lines")}>
+          <BreakdownTab active={breakdownView === "lines"} onClick={() => setBreakdownView("lines")}>
             一覧（単発含む）
           </BreakdownTab>
         </div>
@@ -601,10 +733,12 @@ function ExpenseBreakdownCard({
         <p className="text-sm text-rose-700">内訳の読み込みに失敗しました: {apiErrorMessage(state.error)}</p>
       )}
       {state.status === "success" &&
-        (view === "payment" ? (
+        (breakdownView === "payment" ? (
           <BreakdownList items={paymentItems} accent="text-rose-600" badgeMode={expenseMode} />
-        ) : view === "category" ? (
+        ) : breakdownView === "category" ? (
           <CategoryBreakdownList groups={categoryGroups} badgeMode={expenseMode} />
+        ) : expenseMode === "予" ? (
+          <p className="text-sm text-slate-500">この月は実績ベースの支出明細がありません。</p>
         ) : (
           <ExpenseLineItemsList items={lineItems} badgeMode={expenseMode} />
         ))}
