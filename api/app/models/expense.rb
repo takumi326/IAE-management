@@ -17,7 +17,8 @@ class Expense < ApplicationRecord
 
   before_validation :normalize_recurring_fields
   before_validation :strip_memo
-  before_destroy :destroy_linked_ledger_transactions
+  # dependent: :destroy が登録する before_destroy より先に台帳を消す（ET だけ消すと Transaction が残る）
+  before_destroy :destroy_linked_ledger_transactions, prepend: true
 
   private
 
