@@ -1,16 +1,32 @@
 import { useEffect, useState } from "react"
-import { NavLink, Route, Routes } from "react-router-dom"
+import { NavLink, Navigate, Route, Routes } from "react-router-dom"
 import { api } from "./lib/api.ts"
 import { isSupabaseConfigured, supabase } from "./lib/supabase.ts"
 import { LoginPage } from "./pages/LoginPage.tsx"
 import { DashboardPage } from "./pages/DashboardPage.tsx"
 import { MastersPage } from "./pages/MastersPage.tsx"
 import { SettingsPage } from "./pages/SettingsPage.tsx"
+import { StockDailyPage } from "./pages/StockDailyPage.tsx"
+import { TodoPage } from "./pages/TodoPage.tsx"
 
-const navItems = [
-  { to: "/", label: "ダッシュボード" },
-  { to: "/masters", label: "支出・収入" },
-  { to: "/settings", label: "設定" },
+type SidebarNavItem = { to: string; label: string }
+
+/** 大項目見出しなし（ダッシュボードのみ） */
+const sidebarTopItems: SidebarNavItem[] = [{ to: "/todo", label: "ダッシュボード" }]
+
+const sidebarNavGroups: { label: string; items: SidebarNavItem[] }[] = [
+  {
+    label: "収支管理",
+    items: [
+      { to: "/finance", label: "今年度サマリ" },
+      { to: "/finance/masters", label: "支出・収入" },
+      { to: "/finance/settings", label: "設定" },
+    ],
+  },
+  {
+    label: "株管理",
+    items: [{ to: "/stocks/daily", label: "毎日の記録" }],
+  },
 ]
 const IS_DEV = import.meta.env.DEV
 
@@ -101,9 +117,14 @@ export default function App() {
 
         <section className="min-w-0">
           <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/masters" element={<MastersPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/" element={<Navigate to="/finance" replace />} />
+            <Route path="/masters" element={<Navigate to="/finance/masters" replace />} />
+            <Route path="/settings" element={<Navigate to="/finance/settings" replace />} />
+            <Route path="/finance" element={<DashboardPage />} />
+            <Route path="/finance/masters" element={<MastersPage />} />
+            <Route path="/finance/settings" element={<SettingsPage />} />
+            <Route path="/stocks/daily" element={<StockDailyPage />} />
+            <Route path="/todo" element={<TodoPage />} />
           </Routes>
         </section>
       </div>
@@ -145,23 +166,40 @@ function SidebarHeader() {
 
 function SidebarNav({ onNavigate }: { onNavigate: () => void }) {
   return (
-    <nav className="space-y-1">
-      {navItems.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.to === "/"}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            `block rounded-lg px-3 py-2 text-sm ${
-              isActive ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
-            }`
-          }
-        >
-          {item.label}
-        </NavLink>
+    <nav className="space-y-4">
+      <div className="space-y-1">
+        {sidebarTopItems.map((item) => (
+          <SidebarNavLink key={item.to} item={item} onNavigate={onNavigate} />
+        ))}
+      </div>
+      {sidebarNavGroups.map((group) => (
+        <div key={group.label}>
+          <p className="mb-1 px-2 text-xs font-semibold tracking-wide text-slate-400">{group.label}</p>
+          <div className="space-y-1">
+            {group.items.map((item) => (
+              <SidebarNavLink key={item.to} item={item} onNavigate={onNavigate} />
+            ))}
+          </div>
+        </div>
       ))}
     </nav>
+  )
+}
+
+function SidebarNavLink({ item, onNavigate }: { item: SidebarNavItem; onNavigate: () => void }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.to === "/finance"}
+      onClick={onNavigate}
+      className={({ isActive }) =>
+        `block rounded-lg px-3 py-2 text-sm ${
+          isActive ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"
+        }`
+      }
+    >
+      {item.label}
+    </NavLink>
   )
 }
 

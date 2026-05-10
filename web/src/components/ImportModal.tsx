@@ -589,7 +589,7 @@ export function ImportModal({ onClose, onImported }: Props) {
         <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
           <p className="text-xs text-slate-500">
             Claude 用のプロンプト本文は{" "}
-            <Link to="/settings#import-prompt" className="font-medium text-indigo-600 underline hover:text-indigo-500">
+            <Link to="/finance/settings#import-prompt" className="font-medium text-indigo-600 underline hover:text-indigo-500">
               設定
             </Link>
             から編集できます（サーバーに保存されます）。
