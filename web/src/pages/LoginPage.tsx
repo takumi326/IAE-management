@@ -11,6 +11,8 @@ export function LoginPage({ errorMessage }: Props) {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/`,
+        // ログアウト後も前アカウントに自動で入らず、Google のアカウント選択を出す
+        queryParams: { prompt: "select_account" },
       },
     })
   }

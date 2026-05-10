@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Route, Routes } from "react-router-dom"
-import { ApiError, api } from "./lib/api.ts"
+import { api } from "./lib/api.ts"
 import { isSupabaseConfigured, supabase } from "./lib/supabase.ts"
 import { LoginPage } from "./pages/LoginPage.tsx"
 import { DashboardPage } from "./pages/DashboardPage.tsx"
@@ -40,6 +40,7 @@ export default function App() {
         const { data } = await client.auth.getSession()
         if (!active) return
         if (!data.session?.access_token) {
+          setAuthError(null)
           setAuthStatus("guest")
           return
         }
@@ -47,11 +48,9 @@ export default function App() {
         if (!active) return
         setAuthError(null)
         setAuthStatus("authenticated")
-      } catch (err) {
+      } catch {
         if (!active) return
-        const message =
-          err instanceof ApiError ? err.message : "サーバーとの認証に失敗しました。時間をおいて再度お試しください。"
-        setAuthError(message)
+        setAuthError("ログインできませんでした")
         setAuthStatus("guest")
       }
     }
