@@ -39,4 +39,22 @@ RSpec.describe "Api::UserPreferences", type: :request do
       expect(UserPreference.find_by(owner_key: "development").import_claude_prompt_template).to be_nil
     end
   end
+
+  describe "GET/PATCH /api/preferences/import_prompt" do
+    it "aliases the same controller as /api/user_preferences" do
+      template = "z {{CATALOG}} {{PAYMENT_METHOD_NAME}} {{EXAMPLE_MINOR_ID}}"
+
+      patch "/api/preferences/import_prompt",
+            params: { user_preference: { import_claude_prompt_template: template } },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+
+      get "/api/preferences/import_prompt", headers: headers
+      expect(JSON.parse(response.body).dig("data", "import_claude_prompt_template")).to eq(template)
+
+      get "/api/user_preferences", headers: headers
+      expect(JSON.parse(response.body).dig("data", "import_claude_prompt_template")).to eq(template)
+    end
+  end
 end

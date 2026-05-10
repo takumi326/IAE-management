@@ -109,13 +109,19 @@ export function DashboardPage() {
         const incomeMode: Mode = useIncomeActual ? "実" : "予"
         const expenseMode: Mode = useExpenseActual ? "実" : "予"
         const previousBalance = rows.length > 0 ? rows[rows.length - 1].balance.amount : 0
-        const nextBalance = previousBalance + income - expense
+        const rolledBalance = previousBalance + income - expense
+        const storedBalance =
+          act?.has_monthly_balance && act.monthly_balance_amount != null && act.monthly_balance_amount !== ""
+            ? toNumber(act.monthly_balance_amount)
+            : null
+        const balanceAmount =
+          storedBalance !== null && Number.isFinite(storedBalance) ? storedBalance : rolledBalance
         const balanceMode: Mode = act?.has_monthly_balance ? "実" : "予"
         rows.push({
           month: dateToRowMonth(m),
           income: { amount: income, mode: incomeMode },
           expense: { amount: expense, mode: expenseMode },
-          balance: { amount: nextBalance, mode: balanceMode },
+          balance: { amount: balanceAmount, mode: balanceMode },
         })
         return rows
       }, []),
@@ -711,18 +717,29 @@ function dateToRowMonth(date: string): string {
   return `${y}/${m}`
 }
 
-/** API の month と fiscalMonths のキーを揃える（YYYY-MM-DD または ISO日時） */
+/** API の month と fiscalMonths のキーを揃える。ISO日時は先頭10文字だけ取るとUTC暦で月がずれるため Date 経由にする */
 function normalizeMonthKey(month: string): string {
   const s = String(month).trim()
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
-  if (match) {
-    const [, y, mo] = match
+  if (s === "") return s
+
+  if (s.length > 10 || /[tT]/.test(s)) {
+    const d = new Date(s)
+    if (!Number.isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
+    }
+  }
+
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (dateOnly) {
+    const [, y, mo] = dateOnly
     return `${y}-${mo}-01`
   }
+
   const d = new Date(s)
   if (!Number.isNaN(d.getTime())) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
   }
+
   const head = s.slice(0, 10)
   const [y, mo] = head.split("-")
   if (!y || !mo) return s

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { api } from "../lib/api.ts"
-import { apiErrorMessage } from "../lib/errors.ts"
+import { apiErrorMessage, apiErrorMessageWithFetchHint } from "../lib/errors.ts"
 import {
   DEFAULT_IMPORT_PROMPT_TEMPLATE,
   IMPORT_PROMPT_PLACEHOLDERS,
@@ -35,7 +35,7 @@ export function SettingsPage() {
         setImportPromptDraft(template ?? DEFAULT_IMPORT_PROMPT_TEMPLATE)
       } catch (err) {
         if (!cancelled) {
-          setImportPromptError(apiErrorMessage(err))
+          setImportPromptError(apiErrorMessageWithFetchHint(err))
           setImportPromptDraft(DEFAULT_IMPORT_PROMPT_TEMPLATE)
         }
       } finally {
@@ -101,7 +101,7 @@ export function SettingsPage() {
       setImportPromptSaved("既定のプロンプトに戻しました。")
       window.setTimeout(() => setImportPromptSaved(null), 4000)
     } catch (e) {
-      setImportPromptError(apiErrorMessage(e))
+      setImportPromptError(apiErrorMessageWithFetchHint(e))
     } finally {
       setImportPromptSaving(false)
     }
@@ -162,7 +162,9 @@ export function SettingsPage() {
             既定に戻す
           </button>
         </div>
-        {importPromptError && <p className="mt-2 text-sm text-rose-700">{importPromptError}</p>}
+        {importPromptError && (
+          <p className="mt-2 whitespace-pre-line text-sm text-rose-700">{importPromptError}</p>
+        )}
         {importPromptSaved && <p className="mt-2 text-sm text-emerald-700">{importPromptSaved}</p>}
       </section>
 

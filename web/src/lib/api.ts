@@ -247,6 +247,8 @@ export type FiscalActualMonthRow = {
   expense_actual: number
   /** 月末残高が DB に保存されているか（今年度表の「実」はこれのみ） */
   has_monthly_balance: boolean
+  /** DB に保存された月末残高（円）。未保存の月は null */
+  monthly_balance_amount: string | number | null
 }
 export type MonthlyBalance = {
   month: string
@@ -320,7 +322,7 @@ export const api = {
   upsertMonthlyBalance: (input: { month: string; amount: number }) =>
     postJson<MonthlyBalance>("/api/monthly_balances/upsert", { monthly_balance: input }),
 
-  userPreferences: () => fetchJson<UserPreferences>("/api/user_preferences"),
+  userPreferences: () => fetchJson<UserPreferences>("/api/preferences/import_prompt"),
   updateUserPreferences: (input: UserPreferencesInput) =>
-    patchJson<UserPreferences>("/api/user_preferences", { user_preference: input }),
+    patchJson<UserPreferences>("/api/preferences/import_prompt", { user_preference: input }),
 }
