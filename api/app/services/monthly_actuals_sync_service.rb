@@ -15,9 +15,10 @@ class MonthlyActualsSyncService
       target_expenses.find_each do |expense|
         # 支出マスタ行をロックし、並行同期で同月の取引が二重に付くのを防ぐ
         expense.lock!
-        next if expense.expense_transactions.joins(:ledger_transaction).exists?(transactions: { month: @month })
+        tx_month = expense.payment_method.ledger_month_for_expense_accrual(@month)
+        next if expense.expense_transactions.joins(:ledger_transaction).exists?(transactions: { month: tx_month })
 
-        tx = Transaction.create!(month: @month, amount: -expense.amount)
+        tx = Transaction.create!(month: tx_month, amount: -expense.amount)
         ExpenseTransaction.create!(expense: expense, ledger_transaction: tx)
         created_expense_count += 1
       end

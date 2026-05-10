@@ -47,11 +47,11 @@ module Api
     end
 
     def payment_method_params
-      params.expect(payment_method: [ :name, :method_type, :closing_day, :debit_day ])
+      params.expect(payment_method: [ :name, :method_type, :closing_day, :debit_day, :ledger_charge_timing ])
     end
 
     def payment_method_json(payment_method)
-      payment_method.as_json(only: [ :id, :name, :method_type, :closing_day, :debit_day ])
+      payment_method.as_json(only: [ :id, :name, :method_type, :closing_day, :debit_day, :ledger_charge_timing ])
     end
   end
 end

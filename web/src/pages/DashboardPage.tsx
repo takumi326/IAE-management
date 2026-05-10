@@ -7,11 +7,13 @@ import { MonthlyBalanceFormModal } from "../components/MonthlyBalanceFormModal.t
 import {
   api,
   type CategoryKind,
+  type DashboardExpenseLineItem,
   type DashboardSummary,
   type FiscalActualMonthRow,
   type Forecast,
 } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
+import { formatRecurringTypeLabel } from "../lib/labels.ts"
 import { formatYen, formatYenDelta } from "../lib/format.ts"
 import { useFetch } from "../lib/useFetch.ts"
 
@@ -527,7 +529,7 @@ function ExpenseBreakdownCard({
   /** 選択月の支出サマリと同じ「予／実」（内訳バッジを揃える） */
   expenseMode: Mode
 }) {
-  const [view, setView] = useState<"payment" | "category">("payment")
+  const [view, setView] = useState<"payment" | "category" | "lines">("payment")
   const dashboard = state.status === "success" ? state.data : null
   const paymentItems = dashboard
     ? dashboard.expense_by_payment.map((item) => ({ label: item.label, amount: toNumber(item.amount), mode: item.mode as Mode }))
@@ -543,18 +545,22 @@ function ExpenseBreakdownCard({
         })),
       }))
     : []
-  const hasBreakdownRows = paymentItems.length > 0 || categoryGroups.length > 0
+  const lineItems: DashboardExpenseLineItem[] = dashboard?.expense_line_items ?? []
+  const hasBreakdownRows = paymentItems.length > 0 || categoryGroups.length > 0 || lineItems.length > 0
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold">支出</h2>
-        <div className="inline-flex rounded-full bg-slate-100 p-0.5 text-xs">
+        <div className="inline-flex flex-wrap rounded-full bg-slate-100 p-0.5 text-xs">
           <BreakdownTab active={view === "payment"} onClick={() => setView("payment")}>
             支払方法別
           </BreakdownTab>
           <BreakdownTab active={view === "category"} onClick={() => setView("category")}>
             カテゴリ別
+          </BreakdownTab>
+          <BreakdownTab active={view === "lines"} onClick={() => setView("lines")}>
+            一覧（単発含む）
           </BreakdownTab>
         </div>
       </div>
@@ -565,8 +571,10 @@ function ExpenseBreakdownCard({
       {state.status === "success" &&
         (view === "payment" ? (
           <BreakdownList items={paymentItems} accent="text-rose-600" badgeMode={expenseMode} />
-        ) : (
+        ) : view === "category" ? (
           <CategoryBreakdownList groups={categoryGroups} badgeMode={expenseMode} />
+        ) : (
+          <ExpenseLineItemsList items={lineItems} badgeMode={expenseMode} />
         ))}
       {state.status === "success" && dashboard && !hasBreakdownRows && (
         <p className="mt-2 text-xs text-slate-500">
@@ -576,6 +584,40 @@ function ExpenseBreakdownCard({
         </p>
       )}
     </div>
+  )
+}
+
+function ExpenseLineItemsList({ items, badgeMode }: { items: DashboardExpenseLineItem[]; badgeMode: Mode }) {
+  if (items.length === 0) {
+    return <p className="text-sm text-slate-500">この月に紐づく支出実績行がありません</p>
+  }
+
+  return (
+    <ul className="divide-y divide-slate-100">
+      {items.map((row) => {
+        const memo = row.memo?.trim()
+        const title = memo ? `${row.minor}（${memo}）` : row.minor
+        const sub = `${row.major} · ${row.payment}`
+        const kind = formatRecurringTypeLabel(row.expense_type)
+        return (
+          <li key={row.expense_id} className="py-3 text-sm">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="font-medium text-slate-800">{title}</div>
+                <div className="text-xs text-slate-500">{sub}</div>
+                <div className="mt-1">
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{kind}</span>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
+                <span className="font-semibold text-rose-600">{formatYen(toNumber(row.amount))}</span>
+                <ModeBadge mode={badgeMode} />
+              </div>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

@@ -6,6 +6,9 @@ export type RecurringCycleCode = "monthly" | "yearly"
 export type IncomeTypeCode = "one_time" | "recurring"
 export type PaymentMethodType = "card" | "bank_debit" | "bank_withdrawal"
 
+/** クレカ・口座引き落とし。台帳の支出を「対象月」か「翌月」に載せるか */
+export type LedgerChargeTiming = "same_month" | "next_month"
+
 export type MajorCategory = {
   id: number
   kind: CategoryKind
@@ -22,10 +25,12 @@ export type PaymentMethod = {
   id: number
   name: string
   method_type: PaymentMethodType
-  /** 締め日（1–31）。クレカのみ。未設定は月末締め */
+  /** 廃止予定。クレカでは常に null */
   closing_day: number | null
-  /** 引落日（1–31）。クレカは翌月・口座引落は当月想定 */
+  /** 廃止予定。クレカでは常に null */
   debit_day: number | null
+  /** クレカ・口座引き落としのみ。未返却時は API 側で既定（クレカは翌月・引落は当月） */
+  ledger_charge_timing: LedgerChargeTiming | null
 }
 
 export type ExpenseMaster = {
@@ -167,6 +172,7 @@ export type CreatePaymentMethodInput = {
   method_type: PaymentMethodType
   closing_day?: number | null
   debit_day?: number | null
+  ledger_charge_timing?: LedgerChargeTiming | null
 }
 
 export type UpdatePaymentMethodInput = Partial<CreatePaymentMethodInput>
@@ -238,10 +244,23 @@ export type CategoryBreakdownGroup = {
   mode: BreakdownMode
   minors: BreakdownItem[]
 }
+
+export type DashboardExpenseLineItem = {
+  expense_id: number
+  expense_type: ExpenseTypeCode
+  recurring_cycle: RecurringCycleCode | null
+  major: string
+  minor: string
+  payment: string
+  amount: string | number
+  memo: string | null
+}
+
 export type DashboardSummary = {
   month: string
   expense_by_payment: BreakdownItem[]
   expense_by_category_groups: CategoryBreakdownGroup[]
+  expense_line_items: DashboardExpenseLineItem[]
   monthly_balance: string | number
 }
 

@@ -8,6 +8,7 @@ module Api
           month: month.strftime("%Y-%m-%d"),
           expense_by_payment: expense_by_payment(month),
           expense_by_category_groups: expense_by_category_groups(month),
+          expense_line_items: expense_line_items(month),
           monthly_balance: MonthlyBalance.find_by(month: month)&.amount || 0
         }
       }
@@ -75,9 +76,32 @@ module Api
     end
 
     def expense_rows(month)
+      expense_transactions_for_month(month)
+    end
+
+    def expense_transactions_for_month(month)
       ExpenseTransaction
         .joins(:ledger_transaction, expense: [ :payment_method, { minor_category: :major_category } ])
         .where(transactions: { month: month })
+    end
+
+    def expense_line_items(month)
+      expense_transactions_for_month(month)
+        .preload(expense: [ :payment_method, { minor_category: :major_category } ])
+        .order(Arel.sql("payment_methods.name ASC, expenses.id ASC"))
+        .map do |et|
+          e = et.expense
+          {
+            expense_id: e.id,
+            expense_type: e.expense_type,
+            recurring_cycle: (e.expense_type_recurring? ? e.recurring_cycle : nil),
+            major: e.minor_category.major_category.name,
+            minor: e.minor_category.name,
+            payment: e.payment_method.name,
+            amount: et.ledger_transaction.amount.to_d.abs,
+            memo: e.memo
+          }
+        end
     end
 
     def expense_by_payment(month)

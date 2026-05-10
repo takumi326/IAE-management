@@ -5,8 +5,8 @@ RSpec.describe "Api::PaymentMethods", type: :request do
 
   describe "GET /api/payment_methods" do
     it "returns payment methods list" do
-      create(:payment_method, name: "PayPayカード", method_type: "card", closing_day: nil, debit_day: 27)
-      create(:payment_method, name: "みずほ口座引落", method_type: "bank_debit", debit_day: 26)
+      create(:payment_method, name: "PayPayカード", method_type: "card", ledger_charge_timing: "same_month")
+      create(:payment_method, name: "みずほ口座引き落とし", method_type: "bank_debit", ledger_charge_timing: "next_month")
 
       get "/api/payment_methods", headers: headers
 
@@ -16,20 +16,22 @@ RSpec.describe "Api::PaymentMethods", type: :request do
       expect(body["data"].pluck("method_type").sort).to eq([ "bank_debit", "card" ].sort)
       card = body["data"].find { |r| r["name"] == "PayPayカード" }
       expect(card["closing_day"]).to be_nil
-      expect(card["debit_day"]).to eq(27)
+      expect(card["debit_day"]).to be_nil
+      expect(card["ledger_charge_timing"]).to eq("same_month")
+      bank = body["data"].find { |r| r["name"] == "みずほ口座引き落とし" }
+      expect(bank["ledger_charge_timing"]).to eq("next_month")
+      expect(bank["debit_day"]).to be_nil
     end
   end
 
   describe "POST /api/payment_methods" do
-    it "creates a credit card with 締め/引落" do
+    it "creates a credit card with 翌月計上が既定" do
       expect {
         post "/api/payment_methods",
              params: {
                payment_method: {
                  name: "楽天カード",
-                 method_type: "card",
-                 closing_day: nil,
-                 debit_day: 27
+                 method_type: "card"
                }
              },
              headers: headers
@@ -39,10 +41,11 @@ RSpec.describe "Api::PaymentMethods", type: :request do
       body = JSON.parse(response.body)
       expect(body["data"]["method_type"]).to eq("card")
       expect(body["data"]["closing_day"]).to be_nil
-      expect(body["data"]["debit_day"]).to eq(27)
+      expect(body["data"]["debit_day"]).to be_nil
+      expect(body["data"]["ledger_charge_timing"]).to eq("next_month")
     end
 
-    it "creates bank_debit and ignores closing_day" do
+    it "creates bank_debit with 当月計上が既定し、締め日・引落日は無視される" do
       post "/api/payment_methods",
            params: {
              payment_method: {
@@ -58,7 +61,10 @@ RSpec.describe "Api::PaymentMethods", type: :request do
       pm = PaymentMethod.order(:id).last
       expect(pm.method_type).to eq("bank_debit")
       expect(pm.closing_day).to be_nil
-      expect(pm.debit_day).to eq(8)
+      expect(pm.debit_day).to be_nil
+      expect(pm.ledger_charge_timing).to eq("same_month")
+      body = JSON.parse(response.body)
+      expect(body["data"]["ledger_charge_timing"]).to eq("same_month")
     end
 
     it "creates bank_withdrawal and ignores closing_day" do
@@ -80,10 +86,10 @@ RSpec.describe "Api::PaymentMethods", type: :request do
       expect(pm.debit_day).to be_nil
     end
 
-    it "returns 422 for invalid day" do
+    it "returns 422 for invalid ledger_charge_timing" do
       post "/api/payment_methods",
            params: {
-             payment_method: { name: "bad", method_type: "card", closing_day: 40, debit_day: 27 }
+             payment_method: { name: "bad", method_type: "card", ledger_charge_timing: "bogus" }
            },
            headers: headers
 
@@ -101,7 +107,7 @@ RSpec.describe "Api::PaymentMethods", type: :request do
 
   describe "PATCH /api/payment_methods/:id" do
     it "updates payment method" do
-      pm = create(:payment_method, name: "楽天カード", method_type: "card", closing_day: nil, debit_day: 27)
+      pm = create(:payment_method, name: "楽天カード", method_type: "card", ledger_charge_timing: "next_month")
 
       patch "/api/payment_methods/#{pm.id}",
             params: {
@@ -120,6 +126,7 @@ RSpec.describe "Api::PaymentMethods", type: :request do
       expect(body["data"]["method_type"]).to eq("bank_withdrawal")
       expect(body["data"]["closing_day"]).to be_nil
       expect(body["data"]["debit_day"]).to be_nil
+      expect(body["data"]["ledger_charge_timing"]).to be_nil
     end
   end
 

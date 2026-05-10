@@ -12,17 +12,26 @@ RSpec.describe "Api::Dashboard", type: :request do
       income_minor = create(:minor_category, major_category: create(:major_category, kind: :income))
       card = create(:payment_method, name: "楽天カード")
 
-      expense_a = create(:expense, minor_category: expense_minor_a, payment_method: card)
-      expense_b = create(:expense, minor_category: expense_minor_b, payment_method: card)
+      expense_a = create(:expense, minor_category: expense_minor_a, payment_method: card, expense_type: :recurring, recurring_cycle: :monthly, start_month: Date.new(2026, 1, 1))
+      expense_b = create(:expense, minor_category: expense_minor_b, payment_method: card, expense_type: :recurring, recurring_cycle: :monthly, start_month: Date.new(2026, 1, 1))
+      expense_one = create(:expense,
+                           minor_category: expense_minor_a,
+                           payment_method: card,
+                           expense_type: :one_time,
+                           start_month: month,
+                           end_month: month,
+                           amount: 500)
       income = create(:income, minor_category: income_minor)
 
       tx_expense_a = Transaction.create!(month: month, amount: -3_000)
       tx_expense_b = Transaction.create!(month: month, amount: -2_000)
+      tx_one_time = Transaction.create!(month: month, amount: -500)
       tx_income = Transaction.create!(month: month, amount: 100_000)
       tx_other_month = Transaction.create!(month: Date.new(2026, 5, 1), amount: -9_999)
 
       ExpenseTransaction.create!(expense: expense_a, ledger_transaction: tx_expense_a)
       ExpenseTransaction.create!(expense: expense_b, ledger_transaction: tx_expense_b)
+      ExpenseTransaction.create!(expense: expense_one, ledger_transaction: tx_one_time)
       IncomeTransaction.create!(income: income, ledger_transaction: tx_income)
       ExpenseTransaction.create!(expense: expense_a, ledger_transaction: tx_other_month)
 
@@ -40,7 +49,7 @@ RSpec.describe "Api::Dashboard", type: :request do
       expect(by_payment.size).to eq(1)
       expect(by_payment.first.fetch("label")).to eq("楽天カード")
       expect(by_payment.first.fetch("mode")).to eq("実")
-      expect(by_payment.first.fetch("amount").to_f).to eq(5_000.0)
+      expect(by_payment.first.fetch("amount").to_f).to eq(5_500.0)
 
       groups = data.fetch("expense_by_category_groups")
       expect(groups.size).to eq(1)
@@ -48,9 +57,13 @@ RSpec.describe "Api::Dashboard", type: :request do
       expect(groups.first.fetch("mode")).to eq("実")
       minors = groups.first.fetch("minors")
       expect(minors.map { |row| row.fetch("label") }).to eq([ "サブスク", "通信" ])
-      expect(minors.sum { |row| row.fetch("amount").to_f }).to eq(5_000.0)
+      expect(minors.sum { |row| row.fetch("amount").to_f }).to eq(5_500.0)
 
       expect(data.fetch("monthly_balance").to_f).to eq(1_234_567.0)
+
+      lines = data.fetch("expense_line_items")
+      expect(lines.size).to eq(3)
+      expect(lines.pluck("expense_type").uniq.sort).to eq([ "one_time", "recurring" ].sort)
     end
   end
 

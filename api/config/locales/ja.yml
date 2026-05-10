@@ -51,3 +51,4 @@ ja:
       payment_method:
         closing_day: "締め日（未入力は月末締め）"
         debit_day: "引き落とし日"
+        ledger_charge_timing: "実績を載せる月（当月／翌月）"
