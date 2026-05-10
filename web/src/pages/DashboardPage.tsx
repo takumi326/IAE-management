@@ -690,7 +690,7 @@ function ExpenseBreakdownCard({
     data: DashboardSummary | null
     error: Error | null
   }
-  /** 選択月の支出サマリと同じ「予／実」（内訳バッジを揃える） */
+  /** 「一覧」タブで予測のみのときの案内に使用（内訳各行のバッジは出さない） */
   expenseMode: Mode
 }) {
   const [breakdownView, setBreakdownView] = useState<"payment" | "category" | "lines">("payment")
@@ -734,13 +734,13 @@ function ExpenseBreakdownCard({
       )}
       {state.status === "success" &&
         (breakdownView === "payment" ? (
-          <BreakdownList items={paymentItems} accent="text-rose-600" badgeMode={expenseMode} />
+          <BreakdownList items={paymentItems} accent="text-rose-600" />
         ) : breakdownView === "category" ? (
-          <CategoryBreakdownList groups={categoryGroups} badgeMode={expenseMode} />
+          <CategoryBreakdownList groups={categoryGroups} />
         ) : expenseMode === "予" ? (
           <p className="text-sm text-slate-500">この月は実績ベースの支出明細がありません。</p>
         ) : (
-          <ExpenseLineItemsList items={lineItems} badgeMode={expenseMode} />
+          <ExpenseLineItemsList items={lineItems} />
         ))}
       {state.status === "success" && dashboard && !hasBreakdownRows && (
         <p className="mt-2 text-xs text-slate-500">
@@ -753,7 +753,7 @@ function ExpenseBreakdownCard({
   )
 }
 
-function ExpenseLineItemsList({ items, badgeMode }: { items: DashboardExpenseLineItem[]; badgeMode: Mode }) {
+function ExpenseLineItemsList({ items }: { items: DashboardExpenseLineItem[] }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500">この月に紐づく支出実績行がありません</p>
   }
@@ -775,9 +775,8 @@ function ExpenseLineItemsList({ items, badgeMode }: { items: DashboardExpenseLin
                   <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{kind}</span>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
+              <div className="flex shrink-0 items-center sm:pt-0.5">
                 <span className="font-semibold text-rose-600">{formatYen(toNumber(row.amount))}</span>
-                <ModeBadge mode={badgeMode} />
               </div>
             </div>
           </li>
@@ -793,7 +792,7 @@ type LocalCategoryBreakdownGroup = {
   minors: BreakdownItem[]
 }
 
-function CategoryBreakdownList({ groups, badgeMode }: { groups: LocalCategoryBreakdownGroup[]; badgeMode: Mode }) {
+function CategoryBreakdownList({ groups }: { groups: LocalCategoryBreakdownGroup[] }) {
   if (groups.length === 0) {
     return <p className="text-sm text-slate-500">データがありません</p>
   }
@@ -807,19 +806,13 @@ function CategoryBreakdownList({ groups, badgeMode }: { groups: LocalCategoryBre
             <details open className="group">
               <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm">
                 <span className="font-medium">{group.major}</span>
-                <span className="inline-flex items-center gap-2">
-                  <span className="font-semibold text-rose-600">{formatYen(total)}</span>
-                  <ModeBadge mode={badgeMode} />
-                </span>
+                <span className="font-semibold text-rose-600">{formatYen(total)}</span>
               </summary>
               <ul className="border-t border-slate-100">
                 {group.minors.map((minor) => (
                   <li key={`${group.major}-${minor.label}`} className="flex items-center justify-between px-3 py-2 text-sm">
                     <span className="text-slate-700">{minor.label}</span>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="font-semibold text-rose-600">{formatYen(minor.amount)}</span>
-                      <ModeBadge mode={badgeMode} />
-                    </span>
+                    <span className="font-semibold text-rose-600">{formatYen(minor.amount)}</span>
                   </li>
                 ))}
               </ul>
@@ -831,7 +824,7 @@ function CategoryBreakdownList({ groups, badgeMode }: { groups: LocalCategoryBre
   )
 }
 
-function BreakdownList({ items, accent, badgeMode }: { items: BreakdownItem[]; accent: string; badgeMode: Mode }) {
+function BreakdownList({ items, accent }: { items: BreakdownItem[]; accent: string }) {
   if (items.length === 0) {
     return <p className="text-sm text-slate-500">データがありません</p>
   }
@@ -840,10 +833,7 @@ function BreakdownList({ items, accent, badgeMode }: { items: BreakdownItem[]; a
       {items.map((item) => (
         <li key={item.label} className="flex items-center justify-between py-2 text-sm">
           <span>{item.label}</span>
-          <div className="flex items-center gap-2">
-            <span className={`font-semibold ${accent}`}>{formatYen(item.amount)}</span>
-            <ModeBadge mode={badgeMode} />
-          </div>
+          <span className={`font-semibold ${accent}`}>{formatYen(item.amount)}</span>
         </li>
       ))}
     </ul>

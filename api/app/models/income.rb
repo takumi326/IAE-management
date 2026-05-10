@@ -10,7 +10,15 @@ class Income < ApplicationRecord
   validates :amount, numericality: { greater_than_or_equal_to: 0 }
   validate :end_month_not_before_start_month
 
+  before_destroy :destroy_linked_ledger_transactions
+
   private
+
+  def destroy_linked_ledger_transactions
+    income_transactions.includes(:ledger_transaction).each do |it|
+      it.ledger_transaction&.destroy!
+    end
+  end
 
   def end_month_not_before_start_month
     return if end_month.blank? || start_month.blank?

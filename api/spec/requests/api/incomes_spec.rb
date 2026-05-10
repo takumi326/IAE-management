@@ -80,6 +80,19 @@ RSpec.describe "Api::Incomes", type: :request do
 
       expect(response).to have_http_status(:no_content)
     end
+
+    it "destroys linked ledger transactions when destroying income" do
+      income = create(:income, minor_category: minor)
+      tx = Transaction.create!(month: Date.new(2026, 6, 1), amount: 320_000)
+      IncomeTransaction.create!(income: income, ledger_transaction: tx)
+
+      expect {
+        delete "/api/incomes/#{income.id}", headers: headers
+      }.to change(Income, :count).by(-1).and change(Transaction, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
+      expect(Transaction.find_by(id: tx.id)).to be_nil
+    end
   end
 
   describe "GET /api/incomes/:id/actuals" do
