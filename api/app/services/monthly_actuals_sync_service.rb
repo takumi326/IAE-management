@@ -1,3 +1,5 @@
+# マスタに対し「その月の台帳 Transaction」を1件だけ付ける。支出・収入行を lock! してから存在チェックするので、
+# 並行した POST /api/actuals/sync で同月が二重付与されることは防げる（過去に溜まった重複は実績詳細から個別削除）。
 class MonthlyActualsSyncService
   Result = Struct.new(:created_expense_count, :created_income_count, keyword_init: true)
 
@@ -11,6 +13,8 @@ class MonthlyActualsSyncService
 
     ActiveRecord::Base.transaction do
       target_expenses.find_each do |expense|
+        # 支出マスタ行をロックし、並行同期で同月の取引が二重に付くのを防ぐ
+        expense.lock!
         next if expense.expense_transactions.joins(:ledger_transaction).exists?(transactions: { month: @month })
 
         tx = Transaction.create!(month: @month, amount: -expense.amount)
@@ -19,6 +23,7 @@ class MonthlyActualsSyncService
       end
 
       target_incomes.find_each do |income|
+        income.lock!
         next if income.income_transactions.joins(:ledger_transaction).exists?(transactions: { month: @month })
 
         tx = Transaction.create!(month: @month, amount: income.amount)

@@ -359,6 +359,11 @@ function ExpenseMastersSection() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "recurring" | "one_time">("all")
 
+  const loadExpenseDetailActuals = useCallback(() => {
+    if (detail == null) return Promise.resolve([] as MasterActual[])
+    return api.expenseActuals(detail.id)
+  }, [detail])
+
   if (result.status === "loading") return <Loading label="支出を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
 
@@ -411,9 +416,14 @@ function ExpenseMastersSection() {
                         <th className="px-3 py-2">周期</th>
                         <th className="px-3 py-2">金額</th>
                         <th className="px-3 py-2">支払方法</th>
-                        <th className="px-3 py-2">開始月</th>
-                        <th className="px-3 py-2">終了月</th>
-                        <th className="px-3 py-2">メモ</th>
+                        {filter === "one_time" ? (
+                          <th className="px-3 py-2">支払月</th>
+                        ) : (
+                          <>
+                            <th className="px-3 py-2">開始月</th>
+                            <th className="px-3 py-2">終了月</th>
+                          </>
+                        )}
                         <th className="px-3 py-2" />
                       </tr>
                     </thead>
@@ -427,14 +437,14 @@ function ExpenseMastersSection() {
                           <td className="px-3 py-2">{formatExpenseCycleCell(row)}</td>
                           <td className="px-3 py-2">{formatAmountCell(row.amount)}</td>
                           <td className="px-3 py-2">{methodMap.get(row.payment_method_id)?.name ?? "—"}</td>
-                          <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
-                          <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
-                          <td
-                            className="max-w-[10rem] truncate px-3 py-2 text-slate-600"
-                            title={row.memo?.trim() ? row.memo.trim() : undefined}
-                          >
-                            {formatMemoCell(row.memo)}
-                          </td>
+                          {filter === "one_time" ? (
+                            <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
+                          ) : (
+                            <>
+                              <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
+                              <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
+                            </>
+                          )}
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap items-center gap-2">
                               <button
@@ -491,7 +501,10 @@ function ExpenseMastersSection() {
       {detail && (
         <MasterActualsModal
           title={`支出実績: ${formatCategory(minorMap.get(detail.minor_category_id))}`}
-          loadActuals={() => api.expenseActuals(detail.id)}
+          kind="expense"
+          masterId={detail.id}
+          masterMemo={detail.memo}
+          loadActuals={loadExpenseDetailActuals}
           onClose={() => setDetail(null)}
         />
       )}
@@ -510,6 +523,11 @@ function IncomeMastersSection() {
   const [detail, setDetail] = useState<IncomeMaster | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "recurring" | "one_time">("all")
+
+  const loadIncomeDetailActuals = useCallback(() => {
+    if (detail == null) return Promise.resolve([] as MasterActual[])
+    return api.incomeActuals(detail.id)
+  }, [detail])
 
   if (result.status === "loading") return <Loading label="収入を読み込み中…" />
   if (result.status === "error") return <ErrorBox error={result.error} />
@@ -629,7 +647,9 @@ function IncomeMastersSection() {
       {detail && (
         <MasterActualsModal
           title={`収入実績: ${formatCategory(minorMap.get(detail.minor_category_id))}`}
-          loadActuals={() => api.incomeActuals(detail.id)}
+          kind="income"
+          masterId={detail.id}
+          loadActuals={loadIncomeDetailActuals}
           onClose={() => setDetail(null)}
         />
       )}
@@ -642,14 +662,13 @@ function formatCategory(minor: MinorCategory | undefined): string {
   return `${minor.major_category.name} / ${minor.name}`
 }
 
-function formatMemoCell(memo: string | null | undefined): string {
-  if (memo == null || memo.trim() === "") return "—"
-  const t = memo.trim()
-  return t.length > 40 ? `${t.slice(0, 40)}…` : t
-}
-
 function formatMonthCell(date: string): string {
   return date.slice(0, 7).replace("-", "/")
+}
+
+/** 実績行の `month`（API の日付文字列）→ `<input type="month">` 用 */
+function actualMonthToInput(isoMonth: string): string {
+  return isoMonth.slice(0, 7)
 }
 
 function formatAmountCell(amount: string | number): string {
@@ -792,24 +811,195 @@ function MasterActualsModal({
   title,
   loadActuals,
   onClose,
+  kind,
+  masterId,
+  masterMemo,
 }: {
   title: string
   loadActuals: () => Promise<MasterActual[]>
   onClose: () => void
+  kind: "expense" | "income"
+  masterId: number
+  /** 支出マスタのメモ（一覧では出さず詳細のみ） */
+  masterMemo?: string | null
 }) {
   const result = useFetch(loadActuals)
+  const [rowError, setRowError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editMonth, setEditMonth] = useState("")
+  const [editAmount, setEditAmount] = useState("")
+  const [savingEditId, setSavingEditId] = useState<number | null>(null)
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditMonth("")
+    setEditAmount("")
+    setRowError(null)
+  }
+
+  const startEdit = (row: MasterActual) => {
+    setRowError(null)
+    setEditingId(row.transaction_id)
+    setEditMonth(actualMonthToInput(row.month))
+    setEditAmount(String(Math.round(Number(row.amount))))
+  }
+
+  const saveEdit = async (row: MasterActual) => {
+    const amount = Math.round(Number(editAmount))
+    if (!Number.isFinite(amount) || amount < 0) {
+      setRowError("金額は0以上の数値で入力してください")
+      return
+    }
+    setSavingEditId(row.transaction_id)
+    setRowError(null)
+    try {
+      const monthIso = `${editMonth}-01`
+      if (kind === "expense") {
+        await api.updateExpenseActual(masterId, row.transaction_id, { month: monthIso, amount })
+      } else {
+        await api.updateIncomeActual(masterId, row.transaction_id, { month: monthIso, amount })
+      }
+      cancelEdit()
+      result.refetch()
+    } catch (err) {
+      setRowError(apiErrorMessage(err))
+    } finally {
+      setSavingEditId(null)
+    }
+  }
+
+  const onDeleteRow = async (row: MasterActual) => {
+    if (
+      !window.confirm(
+        `この実績を削除しますか？\n${formatMonthCell(row.month)} / ${formatAmountCell(row.amount)}\n台帳の取引も削除されます。`,
+      )
+    ) {
+      return
+    }
+    setRowError(null)
+    setDeletingId(row.transaction_id)
+    try {
+      if (kind === "expense") {
+        await api.deleteExpenseActual(masterId, row.transaction_id)
+      } else {
+        await api.deleteIncomeActual(masterId, row.transaction_id)
+      }
+      if (editingId === row.transaction_id) {
+        cancelEdit()
+      }
+      result.refetch()
+    } catch (err) {
+      setRowError(apiErrorMessage(err))
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <Modal title={title} onClose={onClose}>
+      {kind === "expense" && masterMemo != null && masterMemo.trim() !== "" && (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+          <p className="text-xs font-medium text-slate-500">マスタのメモ</p>
+          <p className="mt-1 whitespace-pre-wrap text-slate-800">{masterMemo.trim()}</p>
+        </div>
+      )}
       {result.status === "loading" && <p className="text-sm text-slate-500">実績を読み込み中…</p>}
       {result.status === "error" && <p className="text-sm text-rose-700">{result.error.message}</p>}
-      {result.status === "success" && (
-        <Table
-          head={["月", "金額"]}
-          rows={result.data.map((row) => [formatMonthCell(row.month), formatAmountCell(row.amount)])}
-          emptyMessage="実績データがありません"
-        />
-      )}
+      {rowError && <p className="mb-2 text-sm text-rose-700">{rowError}</p>}
+      {result.status === "success" &&
+        (result.data.length === 0 ? (
+          <p className="text-sm text-slate-500">実績データがありません</p>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                <tr>
+                  <th className="px-3 py-2">月</th>
+                  <th className="px-3 py-2">金額（円）</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {result.data.map((row) => (
+                  <tr key={row.transaction_id}>
+                    {editingId === row.transaction_id ? (
+                      <>
+                        <td className="px-3 py-2 align-middle">
+                          <input
+                            type="month"
+                            value={editMonth}
+                            onChange={(e) => setEditMonth(e.target.value)}
+                            className="w-full max-w-[11rem] rounded-md border border-slate-300 px-2 py-1 text-xs"
+                          />
+                        </td>
+                        <td className="px-3 py-2 align-middle">
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value)}
+                            className="w-full max-w-[9rem] rounded-md border border-slate-300 px-2 py-1 text-xs"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex flex-wrap justify-end gap-1">
+                            <button
+                              type="button"
+                              disabled={savingEditId === row.transaction_id}
+                              onClick={() => void saveEdit(row)}
+                              className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                            >
+                              {savingEditId === row.transaction_id ? "保存中…" : "保存"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={savingEditId === row.transaction_id}
+                              onClick={cancelEdit}
+                              className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              キャンセル
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2">{formatMonthCell(row.month)}</td>
+                        <td className="px-3 py-2">{formatAmountCell(row.amount)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex flex-wrap justify-end gap-1">
+                            <button
+                              type="button"
+                              disabled={
+                                deletingId === row.transaction_id ||
+                                savingEditId != null ||
+                                (editingId != null && editingId !== row.transaction_id)
+                              }
+                              onClick={() => startEdit(row)}
+                              className="rounded-md border border-indigo-300 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              編集
+                            </button>
+                            <button
+                              type="button"
+                              disabled={editingId != null || deletingId === row.transaction_id}
+                              onClick={() => void onDeleteRow(row)}
+                              className="rounded-md border border-rose-300 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {deletingId === row.transaction_id ? "削除中…" : "削除"}
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
     </Modal>
   )
 }

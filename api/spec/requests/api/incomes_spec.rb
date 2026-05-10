@@ -96,5 +96,37 @@ RSpec.describe "Api::Incomes", type: :request do
       expect(body["data"].first["month"]).to eq("2026-06-01")
       expect(body["data"].first["amount"]).to eq(320000.0)
     end
+
+    it "deletes one ledger row via DELETE /api/incomes/:id/actuals/:transaction_id" do
+      income = create(:income, minor_category: minor)
+      june = Date.new(2026, 6, 1)
+      tx_keep = Transaction.create!(month: june, amount: 1000)
+      tx_drop = Transaction.create!(month: june, amount: 1000)
+      IncomeTransaction.create!(income: income, ledger_transaction: tx_keep)
+      IncomeTransaction.create!(income: income, ledger_transaction: tx_drop)
+
+      delete "/api/incomes/#{income.id}/actuals/#{tx_drop.id}", headers: headers
+      expect(response).to have_http_status(:no_content)
+
+      get "/api/incomes/#{income.id}/actuals", headers: headers
+      body = JSON.parse(response.body)
+      expect(body["data"].size).to eq(1)
+      expect(body["data"].first["transaction_id"]).to eq(tx_keep.id)
+    end
+
+    it "updates actual month and amount via PATCH" do
+      income = create(:income, minor_category: minor)
+      tx = Transaction.create!(month: Date.new(2026, 6, 1), amount: 320_000)
+      IncomeTransaction.create!(income: income, ledger_transaction: tx)
+
+      patch "/api/incomes/#{income.id}/actuals/#{tx.id}",
+            params: { actual: { month: "2026-08-01", amount: 400_000 } },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      tx.reload
+      expect(tx.month).to eq(Date.new(2026, 8, 1))
+      expect(tx.amount).to eq(400_000)
+    end
   end
 end

@@ -133,5 +133,66 @@ RSpec.describe "Api::Expenses", type: :request do
       expect(body["data"].first["month"]).to eq("2026-06-01")
       expect(body["data"].first["amount"]).to eq("12000.0")
     end
+
+    it "deletes one ledger row via DELETE /api/expenses/:id/actuals/:transaction_id" do
+      expense = create(:expense, minor_category: minor, payment_method: payment_method)
+      june = Date.new(2026, 6, 1)
+      tx_keep = Transaction.create!(month: june, amount: -800)
+      tx_drop = Transaction.create!(month: june, amount: -800)
+      ExpenseTransaction.create!(expense: expense, ledger_transaction: tx_keep)
+      ExpenseTransaction.create!(expense: expense, ledger_transaction: tx_drop)
+
+      delete "/api/expenses/#{expense.id}/actuals/#{tx_drop.id}", headers: headers
+      expect(response).to have_http_status(:no_content)
+
+      get "/api/expenses/#{expense.id}/actuals", headers: headers
+      body = JSON.parse(response.body)
+      expect(body["data"].size).to eq(1)
+      expect(body["data"].first["transaction_id"]).to eq(tx_keep.id)
+    end
+
+    it "returns 404 when transaction_id is not linked to the expense" do
+      expense = create(:expense, minor_category: minor, payment_method: payment_method)
+      other = create(:expense, minor_category: minor, payment_method: payment_method)
+      tx = Transaction.create!(month: Date.new(2026, 6, 1), amount: -1)
+      ExpenseTransaction.create!(expense: other, ledger_transaction: tx)
+
+      delete "/api/expenses/#{expense.id}/actuals/#{tx.id}", headers: headers
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "updates actual month and amount via PATCH" do
+      expense = create(:expense, minor_category: minor, payment_method: payment_method)
+      tx = Transaction.create!(month: Date.new(2026, 6, 1), amount: -800)
+      ExpenseTransaction.create!(expense: expense, ledger_transaction: tx)
+
+      patch "/api/expenses/#{expense.id}/actuals/#{tx.id}",
+            params: { actual: { month: "2026-07-01", amount: 900 } },
+            headers: headers
+
+      expect(response).to have_http_status(:ok)
+      tx.reload
+      expect(tx.month).to eq(Date.new(2026, 7, 1))
+      expect(tx.amount).to eq(-900)
+      body = JSON.parse(response.body)
+      expect(body.dig("data", "transaction_id")).to eq(tx.id)
+      expect(body.dig("data", "amount").to_f).to eq(900.0)
+    end
+
+    it "returns 422 when update would duplicate another row's month" do
+      expense = create(:expense, minor_category: minor, payment_method: payment_method)
+      june = Date.new(2026, 6, 1)
+      july = Date.new(2026, 7, 1)
+      tx_a = Transaction.create!(month: june, amount: -100)
+      tx_b = Transaction.create!(month: july, amount: -200)
+      ExpenseTransaction.create!(expense: expense, ledger_transaction: tx_a)
+      ExpenseTransaction.create!(expense: expense, ledger_transaction: tx_b)
+
+      patch "/api/expenses/#{expense.id}/actuals/#{tx_b.id}",
+            params: { actual: { month: "2026-06-01", amount: 200 } },
+            headers: headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
   end
 end

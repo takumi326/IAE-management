@@ -68,13 +68,23 @@ export function DashboardPage() {
     fiscalActualsState.refetch()
   }
 
+  // 選択月の台帳を揃える（省略時の sync は今月・来月のみのため、単発はここでないと内訳に出ない）
   useEffect(() => {
+    let cancelled = false
     void (async () => {
-      await api.syncActuals()
+      try {
+        await api.syncActuals({ month: monthInputToDate(month) })
+      } catch {
+        // 同期失敗時も内訳は読みに行く
+      }
+      if (cancelled) return
       fiscalActualsState.refetch()
       dashboardState.refetch()
     })()
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [month, fiscalActualsState.refetch, dashboardState.refetch])
 
   const fetchedMonthEndBalanceInput =
     monthEndDashboardState.status === "success"
