@@ -242,6 +242,8 @@ export type FiscalActualMonthRow = {
   has_expense_actual: boolean
   income_actual: number
   expense_actual: number
+  /** 月末残高が DB に保存されているか（今年度表の「実」はこれのみ） */
+  has_monthly_balance: boolean
 }
 export type MonthlyBalance = {
   month: string

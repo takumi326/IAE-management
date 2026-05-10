@@ -19,6 +19,9 @@ export function IncomeMasterFormModal({ onClose, onSaved, minors, initial }: Pro
   const [minorId, setMinorId] = useState<number | "">(initial?.minor_category_id ?? incomeMinors[0]?.id ?? "")
   const [incomeType, setIncomeType] = useState<IncomeTypeCode>(initial?.income_type ?? "recurring")
   const [amount, setAmount] = useState<string>(initial?.amount != null ? String(initial.amount) : "")
+  const [oneTimeMonth, setOneTimeMonth] = useState<string>(
+    initial?.income_type === "one_time" && initial ? dateToMonthInput(initial.start_month) : currentMonthInput(),
+  )
   const [startMonth, setStartMonth] = useState<string>(initial ? dateToMonthInput(initial.start_month) : currentMonthInput())
   const [endMonth, setEndMonth] = useState<string>(initial?.end_month ? dateToMonthInput(initial.end_month) : "")
   const [submitting, setSubmitting] = useState(false)
@@ -39,8 +42,8 @@ export function IncomeMasterFormModal({ onClose, onSaved, minors, initial }: Pro
         minor_category_id: Number(minorId),
         income_type: incomeType,
         amount: Math.round(numericAmount),
-        start_month: monthInputToDate(startMonth),
-        end_month: endMonth ? monthInputToDate(endMonth) : null,
+        start_month: incomeType === "one_time" ? monthInputToDate(oneTimeMonth) : monthInputToDate(startMonth),
+        end_month: incomeType === "one_time" ? null : endMonth ? monthInputToDate(endMonth) : null,
       }
       if (initial) {
         await api.updateIncome(initial.id, payload)
@@ -79,7 +82,11 @@ export function IncomeMasterFormModal({ onClose, onSaved, minors, initial }: Pro
           <FieldLabel>種別</FieldLabel>
           <select
             value={incomeType}
-            onChange={(e) => setIncomeType(e.target.value as IncomeTypeCode)}
+            onChange={(e) => {
+              const next = e.target.value as IncomeTypeCode
+              if (next === "one_time") setOneTimeMonth(startMonth)
+              setIncomeType(next)
+            }}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="recurring">定期</option>
@@ -99,28 +106,49 @@ export function IncomeMasterFormModal({ onClose, onSaved, minors, initial }: Pro
             required
           />
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        {incomeType === "one_time" ? (
           <label className="block text-sm">
-            <FieldLabel>開始月</FieldLabel>
+            <FieldLabel>入金月</FieldLabel>
             <input
               type="month"
-              value={startMonth}
-              onChange={(e) => setStartMonth(e.target.value)}
+              value={oneTimeMonth}
+              onChange={(e) => setOneTimeMonth(e.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               required
             />
           </label>
-          <label className="block text-sm">
-            <FieldLabel>終了月（任意）</FieldLabel>
-            <input
-              type="month"
-              value={endMonth}
-              onChange={(e) => setEndMonth(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-          </label>
-        </div>
-        <FormActions onCancel={onClose} submitting={submitting} disabled={minorId === "" || !startMonth || amount === ""} />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <FieldLabel>開始月</FieldLabel>
+              <input
+                type="month"
+                value={startMonth}
+                onChange={(e) => setStartMonth(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                required
+              />
+            </label>
+            <label className="block text-sm">
+              <FieldLabel>終了月（任意）</FieldLabel>
+              <input
+                type="month"
+                value={endMonth}
+                onChange={(e) => setEndMonth(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+        )}
+        <FormActions
+          onCancel={onClose}
+          submitting={submitting}
+          disabled={
+            minorId === "" ||
+            amount === "" ||
+            (incomeType === "one_time" ? !oneTimeMonth : !startMonth)
+          }
+        />
       </form>
     </Modal>
   )

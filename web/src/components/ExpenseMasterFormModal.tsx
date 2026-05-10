@@ -30,7 +30,9 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
   const [recurringCycle, setRecurringCycle] = useState<RecurringCycleCode>(initial?.recurring_cycle ?? "monthly")
   const [renewalMonth, setRenewalMonth] = useState<number | "">(initial?.renewal_month ?? "")
   const [amount, setAmount] = useState<string>(initial?.amount != null ? String(initial.amount) : "")
-  const [paymentDate, setPaymentDate] = useState<string>(initial ? dateToDateInput(initial.start_month) : currentDateInput())
+  const [oneTimeMonth, setOneTimeMonth] = useState<string>(
+    initial?.expense_type === "one_time" && initial ? dateToMonthInput(initial.start_month) : currentMonthInput(),
+  )
   const [startMonth, setStartMonth] = useState<string>(initial ? dateToMonthInput(initial.start_month) : currentMonthInput())
   const [endMonth, setEndMonth] = useState<string>(initial?.end_month ? dateToMonthInput(initial.end_month) : "")
   const [submitting, setSubmitting] = useState(false)
@@ -58,14 +60,8 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
         recurring_cycle: expenseType === "recurring" ? recurringCycle : "monthly",
         renewal_month: expenseType === "recurring" && recurringCycle === "yearly" ? Number(renewalMonth) : null,
         amount: Math.round(numericAmount),
-        start_month:
-          expenseType === "one_time"
-            ? dateInputToMonthDate(paymentDate)
-            : monthInputToDate(startMonth),
-        end_month:
-          expenseType === "one_time"
-            ? null
-            : (endMonth ? monthInputToDate(endMonth) : null),
+        start_month: expenseType === "one_time" ? monthInputToDate(oneTimeMonth) : monthInputToDate(startMonth),
+        end_month: expenseType === "one_time" ? null : endMonth ? monthInputToDate(endMonth) : null,
       }
       if (initial) {
         await api.updateExpense(initial.id, payload)
@@ -126,6 +122,7 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
               if (next === "one_time") {
                 setRecurringCycle("monthly")
                 setRenewalMonth("")
+                setOneTimeMonth(startMonth)
               }
             }}
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -184,11 +181,11 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
         </label>
         {expenseType === "one_time" ? (
           <label className="block text-sm">
-            <FieldLabel>支払日</FieldLabel>
+            <FieldLabel>支払い月</FieldLabel>
             <input
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
+              type="month"
+              value={oneTimeMonth}
+              onChange={(e) => setOneTimeMonth(e.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               required
             />
@@ -223,7 +220,7 @@ export function ExpenseMasterFormModal({ onClose, onSaved, minors, paymentMethod
             minorId === "" ||
             paymentId === "" ||
             amount === "" ||
-            (expenseType === "one_time" ? !paymentDate : !startMonth)
+            (expenseType === "one_time" ? !oneTimeMonth : !startMonth)
           }
         />
       </form>
@@ -236,26 +233,10 @@ function currentMonthInput(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
 
-function currentDateInput(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, "0")
-  const d = String(now.getDate()).padStart(2, "0")
-  return `${y}-${m}-${d}`
-}
-
 function monthInputToDate(value: string): string {
   return `${value}-01`
 }
 
 function dateToMonthInput(value: string): string {
   return value.slice(0, 7)
-}
-
-function dateToDateInput(value: string): string {
-  return value.slice(0, 10)
-}
-
-function dateInputToMonthDate(value: string): string {
-  return `${value.slice(0, 7)}-01`
 }

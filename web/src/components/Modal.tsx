@@ -26,7 +26,12 @@ export function Modal({ title, onClose, children, size = "md" }: Props) {
       <div className={`w-full ${size === "sm" ? "max-w-sm" : "max-w-xl"} rounded-2xl bg-white p-5 shadow-xl`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">{title}</h3>
-          <button type="button" className="text-slate-400 hover:text-slate-600" onClick={onClose} aria-label="閉じる">
+          <button
+            type="button"
+            className="-m-1 flex h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-2xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            onClick={onClose}
+            aria-label="閉じる"
+          >
             ×
           </button>
         </div>
