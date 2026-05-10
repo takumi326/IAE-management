@@ -52,4 +52,42 @@ RSpec.describe "Api::Forecasts", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
   end
+
+  describe "POST /api/forecasts/fill_missing" do
+    before do
+      Forecast.destroy_all
+      fd = ForecastDefault.instance
+      fd.update!(expense_amount: 111, income_amount: 222)
+    end
+
+    it "creates missing forecasts for the fiscal year from anchor month" do
+      expect {
+        post "/api/forecasts/fill_missing",
+             params: { month: "2026-05-01" },
+             headers: headers
+      }.to change(Forecast, :count).by(24)
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body.dig("data", "created_count")).to eq(24)
+
+      apr = Date.new(2026, 4, 1)
+      exp = Forecast.find_by!(kind: :expense, month: apr)
+      inc = Forecast.find_by!(kind: :income, month: apr)
+      expect(exp.amount.to_i).to eq(111)
+      expect(inc.amount.to_i).to eq(222)
+    end
+
+    it "only fills gaps when some forecasts exist" do
+      Forecast.create!(kind: :expense, month: Date.new(2026, 4, 1), amount: 999)
+
+      expect {
+        post "/api/forecasts/fill_missing",
+             params: { month: "2026-05-01" },
+             headers: headers
+      }.to change(Forecast, :count).by(23)
+
+      expect(Forecast.find_by!(kind: :expense, month: Date.new(2026, 4, 1)).amount.to_i).to eq(999)
+    end
+  end
 end

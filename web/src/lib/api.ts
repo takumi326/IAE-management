@@ -198,8 +198,16 @@ export type SyncActualsInput = {
   month?: string
 }
 
-export type SyncActualsResult = {
+export type SyncActualsByMonth = {
   month: string
+  created_expense_count: number
+  created_income_count: number
+}
+
+export type SyncActualsResult = {
+  /** month 指定なしのときのみ（今月・来月） */
+  months?: string[]
+  by_month?: SyncActualsByMonth[]
   created_expense_count: number
   created_income_count: number
 }
@@ -226,6 +234,14 @@ export type DashboardSummary = {
   expense_by_payment: BreakdownItem[]
   expense_by_category_groups: CategoryBreakdownGroup[]
   monthly_balance: string | number
+}
+
+export type FiscalActualMonthRow = {
+  month: string
+  has_income_actual: boolean
+  has_expense_actual: boolean
+  income_actual: number
+  expense_actual: number
 }
 export type MonthlyBalance = {
   month: string
@@ -283,6 +299,10 @@ export const api = {
     postJson<SyncActualsResult>("/api/actuals/sync", input ?? {}),
 
   dashboard: (month: string) => fetchJson<DashboardSummary>(`/api/dashboard?month=${encodeURIComponent(month)}`),
+  fiscalActuals: (month: string) =>
+    fetchJson<FiscalActualMonthRow[]>(
+      `/api/dashboard/fiscal_actuals?month=${encodeURIComponent(month)}`,
+    ),
   monthlyBalances: (month: string) => fetchJson<MonthlyBalance[]>(`/api/monthly_balances?month=${encodeURIComponent(month)}`),
   upsertMonthlyBalance: (input: { month: string; amount: number }) =>
     postJson<MonthlyBalance>("/api/monthly_balances/upsert", { monthly_balance: input }),
