@@ -40,6 +40,9 @@ Rails.application.routes.draw do
     get "forecast_defaults", to: "forecast_defaults#show"
     patch "forecast_defaults", to: "forecast_defaults#update"
 
+    get "user_preferences", to: "user_preferences#show"
+    patch "user_preferences", to: "user_preferences#update"
+
     post "actuals/sync", to: "actuals#sync"
     get "dashboard", to: "dashboard#show"
     get "dashboard/fiscal_actuals", to: "dashboard#fiscal_actuals"

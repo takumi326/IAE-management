@@ -411,9 +411,9 @@ function ExpenseMastersSection() {
                         <th className="px-3 py-2">周期</th>
                         <th className="px-3 py-2">金額</th>
                         <th className="px-3 py-2">支払方法</th>
-                        <th className="px-3 py-2">メモ</th>
                         <th className="px-3 py-2">開始月</th>
                         <th className="px-3 py-2">終了月</th>
+                        <th className="px-3 py-2">メモ</th>
                         <th className="px-3 py-2" />
                       </tr>
                     </thead>
@@ -427,14 +427,14 @@ function ExpenseMastersSection() {
                           <td className="px-3 py-2">{formatExpenseCycleCell(row)}</td>
                           <td className="px-3 py-2">{formatAmountCell(row.amount)}</td>
                           <td className="px-3 py-2">{methodMap.get(row.payment_method_id)?.name ?? "—"}</td>
+                          <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
+                          <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
                           <td
                             className="max-w-[10rem] truncate px-3 py-2 text-slate-600"
                             title={row.memo?.trim() ? row.memo.trim() : undefined}
                           >
                             {formatMemoCell(row.memo)}
                           </td>
-                          <td className="px-3 py-2">{formatMonthCell(row.start_month)}</td>
-                          <td className="px-3 py-2">{row.end_month ? formatMonthCell(row.end_month) : "—"}</td>
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap items-center gap-2">
                               <button

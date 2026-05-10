@@ -138,6 +138,17 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
           </label>
 
           <label className="block text-sm">
+            <span className="text-slate-600">支払い月</span>
+            <input
+              type="month"
+              value={entryMonth}
+              onChange={(e) => setEntryMonth(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              required
+            />
+          </label>
+
+          <label className="block text-sm">
             <span className="text-slate-600">メモ（任意）</span>
             <textarea
               value={memo}
@@ -146,17 +157,6 @@ export function ActualEditorModal({ month, onClose, onSaved }: Props) {
               maxLength={2000}
               placeholder="例: 店名・用途"
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-          </label>
-
-          <label className="block text-sm">
-            <span className="text-slate-600">支払い月</span>
-            <input
-              type="month"
-              value={entryMonth}
-              onChange={(e) => setEntryMonth(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              required
             />
           </label>
 

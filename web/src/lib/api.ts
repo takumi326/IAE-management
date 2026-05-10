@@ -256,6 +256,14 @@ export type AuthUser = {
   email: string
 }
 
+export type UserPreferences = {
+  import_claude_prompt_template: string | null
+}
+
+export type UserPreferencesInput = {
+  import_claude_prompt_template: string | null
+}
+
 export const api = {
   me: () => fetchJson<AuthUser>("/api/auth/me"),
   signOut: () => deleteJson("/api/auth/logout"),
@@ -311,4 +319,8 @@ export const api = {
   monthlyBalances: (month: string) => fetchJson<MonthlyBalance[]>(`/api/monthly_balances?month=${encodeURIComponent(month)}`),
   upsertMonthlyBalance: (input: { month: string; amount: number }) =>
     postJson<MonthlyBalance>("/api/monthly_balances/upsert", { monthly_balance: input }),
+
+  userPreferences: () => fetchJson<UserPreferences>("/api/user_preferences"),
+  updateUserPreferences: (input: UserPreferencesInput) =>
+    patchJson<UserPreferences>("/api/user_preferences", { user_preference: input }),
 }
