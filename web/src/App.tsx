@@ -4,15 +4,15 @@ import { api } from "./lib/api.ts"
 import { isSupabaseConfigured, supabase } from "./lib/supabase.ts"
 import { LoginPage } from "./pages/LoginPage.tsx"
 import { DashboardPage } from "./pages/DashboardPage.tsx"
+import { FinanceSummaryPage } from "./pages/FinanceSummaryPage.tsx"
 import { MastersPage } from "./pages/MastersPage.tsx"
 import { SettingsPage } from "./pages/SettingsPage.tsx"
 import { StockDailyPage } from "./pages/StockDailyPage.tsx"
-import { TodoPage } from "./pages/TodoPage.tsx"
 
 type SidebarNavItem = { to: string; label: string }
 
 /** 大項目見出しなし（ダッシュボードのみ） */
-const sidebarTopItems: SidebarNavItem[] = [{ to: "/todo", label: "ダッシュボード" }]
+const sidebarTopItems: SidebarNavItem[] = [{ to: "/", label: "ダッシュボード" }]
 
 const sidebarNavGroups: { label: string; items: SidebarNavItem[] }[] = [
   {
@@ -117,14 +117,14 @@ export default function App() {
 
         <section className="min-w-0">
           <Routes>
-            <Route path="/" element={<Navigate to="/finance" replace />} />
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/finance" element={<FinanceSummaryPage />} />
             <Route path="/masters" element={<Navigate to="/finance/masters" replace />} />
             <Route path="/settings" element={<Navigate to="/finance/settings" replace />} />
-            <Route path="/finance" element={<DashboardPage />} />
             <Route path="/finance/masters" element={<MastersPage />} />
             <Route path="/finance/settings" element={<SettingsPage />} />
             <Route path="/stocks/daily" element={<StockDailyPage />} />
-            <Route path="/todo" element={<TodoPage />} />
+            <Route path="/todo" element={<Navigate to="/" replace />} />
           </Routes>
         </section>
       </div>
@@ -190,7 +190,7 @@ function SidebarNavLink({ item, onNavigate }: { item: SidebarNavItem; onNavigate
   return (
     <NavLink
       to={item.to}
-      end={item.to === "/finance"}
+      end={item.to === "/" || item.to === "/finance"}
       onClick={onNavigate}
       className={({ isActive }) =>
         `block rounded-lg px-3 py-2 text-sm ${
