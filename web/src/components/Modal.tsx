@@ -4,7 +4,7 @@ type Props = {
   title: string
   onClose: () => void
   children: ReactNode
-  size?: "sm" | "md" | "lg" | "xl"
+  size?: "sm" | "md" | "lg" | "xl" | "2xl"
 }
 
 const MODAL_MAX: Record<NonNullable<Props["size"]>, string> = {
@@ -12,6 +12,8 @@ const MODAL_MAX: Record<NonNullable<Props["size"]>, string> = {
   md: "max-w-xl",
   lg: "max-w-4xl",
   xl: "max-w-6xl",
+  /** 株の詳細など、PC で横幅を多く取りたいモーダル用 */
+  "2xl": "max-w-[min(92rem,calc(100vw-2rem))]",
 }
 
 export function Modal({ title, onClose, children, size = "md" }: Props) {
