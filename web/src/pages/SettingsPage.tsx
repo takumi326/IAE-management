@@ -92,22 +92,6 @@ export function SettingsPage() {
     }
   }
 
-  const resetImportPrompt = async () => {
-    setImportPromptError(null)
-    setImportPromptSaved(null)
-    setImportPromptSaving(true)
-    try {
-      await api.updateUserPreferences({ import_claude_prompt_template: null })
-      setImportPromptDraft(DEFAULT_IMPORT_PROMPT_TEMPLATE)
-      setImportPromptSaved("既定のプロンプトに戻しました。")
-      window.setTimeout(() => setImportPromptSaved(null), 4000)
-    } catch (e) {
-      setImportPromptError(apiErrorMessageWithFetchHint(e))
-    } finally {
-      setImportPromptSaving(false)
-    }
-  }
-
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -132,6 +116,10 @@ export function SettingsPage() {
             <code className="rounded bg-slate-100 px-1">{IMPORT_PROMPT_PLACEHOLDERS.EXAMPLE_MINOR_ID}</code>{" "}
             … 例の JSON に使う小カテゴリ id（数値）
           </li>
+          <li>
+            <code className="rounded bg-slate-100 px-1">{IMPORT_PROMPT_PLACEHOLDERS.MONTH}</code>{" "}
+            … 取込対象の利用月 YYYY年MM月（取込モーダルで月が未指定のときはコピー時点の暦月）
+          </li>
         </ul>
         <label className="mt-3 block text-sm">
           <span className="text-slate-700">プロンプト本文</span>
@@ -152,14 +140,6 @@ export function SettingsPage() {
             className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
           >
             {importPromptSaving ? "保存中…" : "保存"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void resetImportPrompt()}
-            disabled={importPromptLoading || importPromptSaving}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
-          >
-            既定に戻す
           </button>
         </div>
         {importPromptError && (

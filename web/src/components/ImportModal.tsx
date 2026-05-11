@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { api, type ExpenseMaster, type MinorCategory } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
 import { sortMinorCategories } from "../lib/categorySort.ts"
-import { buildImportClaudePrompt } from "../lib/importPromptSettings.ts"
+import { buildImportClaudePrompt, parseImportMonthField } from "../lib/importPromptSettings.ts"
 import { useFetch } from "../lib/useFetch.ts"
 
 const FIXED_PAYMENT_METHOD_NAME = "Amazonカード"
@@ -302,10 +302,22 @@ export function ImportModal({ onClose, onImported }: Props) {
   }
 
   const toMonthDate = (row: ImportRow): string => {
-    if (row.month) return `${String(row.month).slice(0, 7)}-01`
+    if (row.month) {
+      const yyyymm = parseImportMonthField(row.month)
+      if (!yyyymm) throw new Error("month（YYYY-MM または YYYY年MM月）が必要です")
+      return `${yyyymm}-01`
+    }
     if (row.payment_date) return `${String(row.payment_date).slice(0, 7)}-01`
-    throw new Error("month（YYYY-MM）が必要です")
+    throw new Error("month（YYYY-MM または YYYY年MM月）が必要です")
   }
+
+  /** プロンプト内 {{month}} の基準となる YYYY-MM（比較月が未設定なら暦月、プレビュー中は JSON からの最小月も可）。コピー本文では YYYY年MM月 に整形される */
+  const importPromptMonth = useMemo(() => {
+    if (/^\d{4}-\d{2}$/.test(compareMonthInput)) return compareMonthInput
+    if (pendingRows && pendingRows.length > 0) return minMonthLabel(pendingRows)
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+  }, [compareMonthInput, pendingRows])
 
   const claudePrompt = useMemo(() => {
     if (bundle.status !== "success") {
@@ -329,9 +341,10 @@ export function ImportModal({ onClose, onImported }: Props) {
       catalog,
       paymentMethodName: FIXED_PAYMENT_METHOD_NAME,
       exampleMinorId: expenseMinors[0]?.id ?? 1,
+      month: importPromptMonth,
       savedTemplate: bundle.data[2].import_claude_prompt_template,
     })
-  }, [bundle, expenseMinors, fixedPaymentMethod])
+  }, [bundle, expenseMinors, fixedPaymentMethod, importPromptMonth])
 
   const buildPendingRows = (): PendingImportRow[] => {
     const rows = JSON.parse(rawJson) as ImportRow[]
@@ -562,7 +575,7 @@ export function ImportModal({ onClose, onImported }: Props) {
   }
 
   const exampleId = expenseMinors[0]?.id ?? 1
-  const jsonPlaceholder = `[{"month":"2026-05","minor_category_id":${exampleId},"amount":1200,"memo":""}]`
+  const jsonPlaceholder = `[{"month":"${importPromptMonth}","minor_category_id":${exampleId},"amount":1200,"memo":""}]`
 
   return (
     <div

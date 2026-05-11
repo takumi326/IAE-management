@@ -97,4 +97,36 @@ RSpec.describe "Api::StockDailyNotes", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
   end
+
+  describe "DELETE /api/stock_daily_notes/:id" do
+    it "removes the row for the development owner" do
+      note = StockDailyNote.create!(
+        owner_key: "development",
+        recorded_on: Date.new(2026, 5, 3),
+        hypothesis: "x",
+        result: "",
+        sector_research: ""
+      )
+
+      delete "/api/stock_daily_notes/#{note.id}", headers: headers
+
+      expect(response).to have_http_status(:no_content)
+      expect(StockDailyNote.find_by(id: note.id)).to be_nil
+    end
+
+    it "returns 404 for another id" do
+      other = StockDailyNote.create!(
+        owner_key: "other-owner",
+        recorded_on: Date.new(2026, 5, 4),
+        hypothesis: "y",
+        result: "",
+        sector_research: ""
+      )
+
+      delete "/api/stock_daily_notes/#{other.id}", headers: headers
+
+      expect(response).to have_http_status(:not_found)
+      expect(StockDailyNote.find_by(id: other.id)).to be_present
+    end
+  end
 end
