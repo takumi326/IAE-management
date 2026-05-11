@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkBreaks from "remark-breaks"
 import { FormActions, FormError, Modal } from "../components/Modal.tsx"
-import { api, type UserPreferences } from "../lib/api.ts"
+import { api, type StockDailyNote, type StockDailyNoteUpsertInput, type UserPreferences } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
 
 type StockDailyRow = {
@@ -67,8 +67,121 @@ function upsertRowField(
   return [nextRow, ...rest]
 }
 
+function readRows(): StockDailyRow[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown[]
+    if (!Array.isArray(parsed)) return []
+    const out: StockDailyRow[] = []
+    for (const item of parsed) {
+      const row = normalizeStoredRow(item)
+      if (row) out.push(row)
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+function normalizeStoredRow(item: unknown): StockDailyRow | null {
+  if (item == null || typeof item !== "object") return null
+  const o = item as Record<string, unknown>
+  if (typeof o.id !== "string" || typeof o.date !== "string" || typeof o.createdAt !== "string") return null
+
+  if (typeof o.hypothesis === "string" && typeof o.result === "string" && typeof o.sectorResearch === "string") {
+    return {
+      id: o.id,
+      date: o.date,
+      hypothesis: o.hypothesis,
+      result: o.result,
+      sectorResearch: o.sectorResearch,
+      createdAt: o.createdAt,
+    }
+  }
+
+  if (typeof o.content === "string") {
+    return {
+      id: o.id,
+      date: o.date,
+      hypothesis: o.content,
+      result: "",
+      sectorResearch: "",
+      createdAt: o.createdAt,
+    }
+  }
+
+  return null
+}
+
+function isPersistedStockNoteId(id: string): boolean {
+  return /^\d+$/.test(id)
+}
+
+function rowSignature(r: StockDailyRow): string {
+  return `${r.hypothesis.trim()}\n${r.result.trim()}\n${r.sectorResearch.trim()}`
+}
+
+function fromApiNote(n: StockDailyNote): StockDailyRow {
+  return {
+    id: String(n.id),
+    date: n.recorded_on.slice(0, 10),
+    hypothesis: n.hypothesis ?? "",
+    result: n.result ?? "",
+    sectorResearch: n.sector_research ?? "",
+    createdAt: n.updated_at,
+  }
+}
+
+function sortStockDailyRows(list: StockDailyRow[]): StockDailyRow[] {
+  return [...list].sort((a, b) => (a.date < b.date ? 1 : -1))
+}
+
+function toUpsertBody(r: StockDailyRow): StockDailyNoteUpsertInput {
+  return {
+    recorded_on: r.date,
+    hypothesis: r.hypothesis,
+    result: r.result,
+    sector_research: r.sectorResearch,
+  }
+}
+
+function withRowFromUpsertResponse(prevRows: StockDailyRow[], saved: StockDailyNote): StockDailyRow[] {
+  const mapped = fromApiNote(saved)
+  const rest = prevRows.filter((r) => r.date !== mapped.date)
+  return sortStockDailyRows([...rest, mapped])
+}
+
+/** 旧 localStorage からの取り込み（同一記録日で中身が違えばローカルをサーバへ送る） */
+async function mergeLegacyLocalStorageIntoApi(apiList: StockDailyNote[]): Promise<StockDailyRow[]> {
+  const legacy = readRows()
+  if (legacy.length === 0) {
+    return sortStockDailyRows(apiList.map(fromApiNote))
+  }
+  const apiRows = apiList.map(fromApiNote)
+  const byDate = new Map<string, StockDailyRow>(apiRows.map((r) => [r.date, r]))
+  let upsertCount = 0
+  for (const l of legacy) {
+    const e = byDate.get(l.date)
+    if (!e || rowSignature(l) !== rowSignature(e)) {
+      await api.upsertStockDailyNote(toUpsertBody(l))
+      upsertCount += 1
+    }
+  }
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  if (upsertCount > 0) {
+    const fresh = await api.stockDailyNotes()
+    return sortStockDailyRows(fresh.map(fromApiNote))
+  }
+  return sortStockDailyRows([...byDate.values()])
+}
+
 export function StockDailyPage() {
-  const [rows, setRows] = useState<StockDailyRow[]>(() => readRows())
+  const [rows, setRows] = useState<StockDailyRow[]>([])
   const [fieldEdit, setFieldEdit] = useState<{ date: string; field: EditField } | null>(null)
   const [fieldDraft, setFieldDraft] = useState("")
 
@@ -92,6 +205,11 @@ export function StockDailyPage() {
   const [createDate, setCreateDate] = useState(today())
   const [createHypothesis, setCreateHypothesis] = useState("")
   const [createError, setCreateError] = useState<string | null>(null)
+  const [notesLoading, setNotesLoading] = useState(true)
+  const [notesError, setNotesError] = useState<string | null>(null)
+  const [fieldSaveError, setFieldSaveError] = useState<string | null>(null)
+  const [fieldSaving, setFieldSaving] = useState(false)
+  const [createSaving, setCreateSaving] = useState(false)
 
   const sortedRows = useMemo(
     () => [...rows].sort((a, b) => (a.date < b.date ? 1 : -1)),
@@ -115,12 +233,53 @@ export function StockDailyPage() {
     }
   }, [])
 
-  const saveRows = (next: StockDailyRow[]) => {
-    setRows(next)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  }
+  const loadNotes = useCallback(async () => {
+    setNotesLoading(true)
+    setNotesError(null)
+    try {
+      const list = await api.stockDailyNotes()
+      const merged = await mergeLegacyLocalStorageIntoApi(list)
+      setRows(merged)
+    } catch (err) {
+      setNotesError(apiErrorMessage(err))
+    } finally {
+      setNotesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadNotes()
+  }, [loadNotes])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== "visible") return
+      if (fieldEdit != null || createRecordOpen || promptModalOpen) return
+      void loadNotes()
+    }
+    document.addEventListener("visibilitychange", onVis)
+    return () => document.removeEventListener("visibilitychange", onVis)
+  }, [loadNotes, fieldEdit, createRecordOpen, promptModalOpen])
+
+  useEffect(() => {
+    if (!detailRow) return
+    const fresh = rows.find((r) => r.date === detailRow.date)
+    if (!fresh) {
+      setDetailRow(null)
+      return
+    }
+    if (
+      fresh.id !== detailRow.id ||
+      fresh.hypothesis !== detailRow.hypothesis ||
+      fresh.result !== detailRow.result ||
+      fresh.sectorResearch !== detailRow.sectorResearch
+    ) {
+      setDetailRow(fresh)
+    }
+  }, [rows, detailRow])
 
   const openFieldEdit = (recordDate: string, field: EditField) => {
+    setFieldSaveError(null)
     const row = rows.find((r) => r.date === recordDate)
     const initial =
       field === "hypothesis"
@@ -135,12 +294,38 @@ export function StockDailyPage() {
   const closeFieldEdit = () => {
     setFieldEdit(null)
     setFieldDraft("")
+    setFieldSaveError(null)
   }
 
-  const saveFieldEdit = () => {
+  const saveFieldEdit = async () => {
     if (!fieldEdit) return
-    saveRows(upsertRowField(rows, fieldEdit.date, fieldEdit.field, fieldDraft))
-    closeFieldEdit()
+    setFieldSaveError(null)
+    setFieldSaving(true)
+    const prev = rows.find((r) => r.date === fieldEdit.date)
+    try {
+      const next = upsertRowField(rows, fieldEdit.date, fieldEdit.field, fieldDraft)
+      const removed = !next.some((r) => r.date === fieldEdit.date)
+      if (removed) {
+        if (prev && isPersistedStockNoteId(prev.id)) {
+          await api.deleteStockDailyNote(Number(prev.id))
+        }
+        setRows(next)
+        closeFieldEdit()
+        return
+      }
+      const row = next.find((r) => r.date === fieldEdit.date)
+      if (!row) {
+        closeFieldEdit()
+        return
+      }
+      const saved = await api.upsertStockDailyNote(toUpsertBody(row))
+      setRows(withRowFromUpsertResponse(next, saved))
+      closeFieldEdit()
+    } catch (err) {
+      setFieldSaveError(apiErrorMessage(err))
+    } finally {
+      setFieldSaving(false)
+    }
   }
 
   const openCreateRecordModal = () => {
@@ -155,14 +340,28 @@ export function StockDailyPage() {
     setCreateError(null)
   }
 
-  const saveCreateRecord = () => {
+  const saveCreateRecord = async () => {
     setCreateError(null)
     if (!createHypothesis.trim()) {
       setCreateError("仮説を入力してください")
       return
     }
-    saveRows(upsertRowField(rows, createDate, "hypothesis", createHypothesis))
-    closeCreateRecordModal()
+    setCreateSaving(true)
+    try {
+      const next = upsertRowField(rows, createDate, "hypothesis", createHypothesis)
+      const row = next.find((r) => r.date === createDate)
+      if (!row) {
+        setCreateError("保存に失敗しました")
+        return
+      }
+      const saved = await api.upsertStockDailyNote(toUpsertBody(row))
+      setRows(withRowFromUpsertResponse(next, saved))
+      closeCreateRecordModal()
+    } catch (err) {
+      setCreateError(apiErrorMessage(err))
+    } finally {
+      setCreateSaving(false)
+    }
   }
 
   const openPromptEditModal = () => {
@@ -221,7 +420,9 @@ export function StockDailyPage() {
         : key === "result"
           ? savedStockPrompts.result
           : savedStockPrompts.sector
-    const forClipboard = applyStockPromptPlaceholders(text, today())
+    const recordedOn = today()
+    const hypothesisForDay = rows.find((r) => r.date === recordedOn)?.hypothesis ?? ""
+    const forClipboard = applyStockPromptPlaceholders(text, recordedOn, hypothesisForDay)
     try {
       await navigator.clipboard.writeText(forClipboard)
       setCopiedKey(key)
@@ -233,9 +434,17 @@ export function StockDailyPage() {
     }
   }
 
-  const deleteRecordRow = (recordDate: string) => {
-    saveRows(rows.filter((r) => r.date !== recordDate))
-    setDetailRow((current) => (current?.date === recordDate ? null : current))
+  const deleteRecordRow = async (recordDate: string) => {
+    const prev = rows.find((r) => r.date === recordDate)
+    try {
+      if (prev && isPersistedStockNoteId(prev.id)) {
+        await api.deleteStockDailyNote(Number(prev.id))
+      }
+      setRows((curr) => curr.filter((r) => r.date !== recordDate))
+      setDetailRow((current) => (current?.date === recordDate ? null : current))
+    } catch (err) {
+      setNotesError(apiErrorMessage(err))
+    }
   }
 
   const confirmDeleteRecord = (recordDate: string) => {
@@ -247,7 +456,7 @@ export function StockDailyPage() {
     ) {
       return
     }
-    deleteRecordRow(recordDate)
+    void deleteRecordRow(recordDate)
   }
 
   return (
@@ -258,15 +467,17 @@ export function StockDailyPage() {
 
       {promptModalOpen && (
         <Modal title="プロンプト編集" onClose={closePromptModal} size="lg">
-          <p className="mb-2 text-sm text-slate-600">
-            毎日の記録の仮説・結果・セクター調べ用の Claude プロンプトをそれぞれ保存します。空で保存するとその項目は未設定になります。コピー時に次のプレースホルダを今日の日付へ置き換えます（大文字小文字無視・前後に空白可）:{" "}
-            <code className="rounded bg-slate-100 px-1 text-xs">{"{{date}}"}</code> は{" "}
-            <code className="rounded bg-slate-100 px-1 text-xs">YYYY年MM月DD日</code>、{" "}
-            <code className="rounded bg-slate-100 px-1 text-xs">{"{{date_iso}}"}</code> は{" "}
-            <code className="rounded bg-slate-100 px-1 text-xs">YYYY-MM-DD</code>、{" "}
-            <code className="rounded bg-slate-100 px-1 text-xs">{"{{記録日}}"}</code> は{" "}
-            <code className="rounded bg-slate-100 px-1 text-xs">{"{{date}}"}</code> と同じです。
+          <p className="mt-1 text-xs text-slate-500">
+            毎日の記録の仮説・結果・セクター調べ用の Claude プロンプトをそれぞれ保存します。空で保存するとその項目は未設定になります。コピー時に次のプレースホルダを置き換えます（大文字小文字無視・前後に空白可）。日付はコピー実行日の暦日、仮説プレースホルダはその日付の保存済み記録の仮説欄です。
           </p>
+          <ul className="mt-2 mb-2 list-inside list-disc text-xs text-slate-600">
+            <li>
+              <code className="rounded bg-slate-100 px-1">{"{{date}}"}</code> … YYYY年MM月DD日
+            </li>
+            <li>
+              <code className="rounded bg-slate-100 px-1">{"{{hypothesis}}"}</code> … コピー実行日の記録にある仮説本文（未入力なら空）
+            </li>
+          </ul>
           <FormError message={promptOpenError} />
           <FormError message={promptSaveError} />
           <form
@@ -330,20 +541,23 @@ export function StockDailyPage() {
             placeholder={"# 見出し\n- リスト\n```\nコード\n```"}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm leading-relaxed"
           />
+          <FormError message={fieldSaveError} />
           <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
               onClick={closeFieldEdit}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+              disabled={fieldSaving}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
             >
               キャンセル
             </button>
             <button
               type="button"
-              onClick={saveFieldEdit}
-              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+              onClick={() => void saveFieldEdit()}
+              disabled={fieldSaving}
+              className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
             >
-              保存
+              {fieldSaving ? "保存中…" : "保存"}
             </button>
           </div>
         </Modal>
@@ -389,12 +603,25 @@ export function StockDailyPage() {
           <button
             type="button"
             onClick={openCreateRecordModal}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+            disabled={notesLoading}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
           >
             作成
           </button>
         </div>
-        {sortedRows.length === 0 ? (
+        <FormError message={notesError} />
+        {notesError && (
+          <button
+            type="button"
+            onClick={() => void loadNotes()}
+            className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            再読み込み
+          </button>
+        )}
+        {notesLoading ? (
+          <p className="text-sm text-slate-500">記録を読み込み中です…</p>
+        ) : sortedRows.length === 0 ? (
           <p className="text-sm text-slate-500">まだ記録がありません。</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -494,16 +721,18 @@ export function StockDailyPage() {
               <button
                 type="button"
                 onClick={closeCreateRecordModal}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+                disabled={createSaving}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
               >
                 キャンセル
               </button>
               <button
                 type="button"
-                onClick={saveCreateRecord}
-                className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+                onClick={() => void saveCreateRecord()}
+                disabled={createSaving}
+                className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
               >
-                保存
+                {createSaving ? "保存中…" : "保存"}
               </button>
             </div>
           </div>
@@ -615,58 +844,16 @@ function formatRecordDateJp(isoDate: string): string {
   return `${yn}年${String(mon).padStart(2, "0")}月${String(dayn).padStart(2, "0")}日`
 }
 
-/** 株プロンプト用。コピー時などに `recordedOnIso`（YYYY-MM-DD）基準で置換する */
-function applyStockPromptPlaceholders(text: string, recordedOnIso: string): string {
+/** 株プロンプト用。コピー時に `recordedOnIso`（YYYY-MM-DD）と当日の仮説本文へ置換する */
+function applyStockPromptPlaceholders(
+  text: string,
+  recordedOnIso: string,
+  hypothesisBody: string,
+): string {
   const jp = formatRecordDateJp(recordedOnIso)
   return text
     .replace(/\{\{\s*date_iso\s*\}\}/gi, recordedOnIso)
     .replace(/\{\{\s*date\s*\}\}/gi, jp)
     .replace(/\{\{\s*記録日\s*\}\}/g, jp)
-}
-
-function readRows(): StockDailyRow[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown[]
-    if (!Array.isArray(parsed)) return []
-    const out: StockDailyRow[] = []
-    for (const item of parsed) {
-      const row = normalizeStoredRow(item)
-      if (row) out.push(row)
-    }
-    return out
-  } catch {
-    return []
-  }
-}
-
-function normalizeStoredRow(item: unknown): StockDailyRow | null {
-  if (item == null || typeof item !== "object") return null
-  const o = item as Record<string, unknown>
-  if (typeof o.id !== "string" || typeof o.date !== "string" || typeof o.createdAt !== "string") return null
-
-  if (typeof o.hypothesis === "string" && typeof o.result === "string" && typeof o.sectorResearch === "string") {
-    return {
-      id: o.id,
-      date: o.date,
-      hypothesis: o.hypothesis,
-      result: o.result,
-      sectorResearch: o.sectorResearch,
-      createdAt: o.createdAt,
-    }
-  }
-
-  if (typeof o.content === "string") {
-    return {
-      id: o.id,
-      date: o.date,
-      hypothesis: o.content,
-      result: "",
-      sectorResearch: "",
-      createdAt: o.createdAt,
-    }
-  }
-
-  return null
+    .replace(/\{\{\s*hypothesis\s*\}\}/gi, () => hypothesisBody)
 }

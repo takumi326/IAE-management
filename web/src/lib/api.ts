@@ -302,6 +302,22 @@ export type UserPreferencesInput = {
   stock_daily_sector_prompt?: string | null
 }
 
+export type StockDailyNote = {
+  id: number
+  recorded_on: string
+  hypothesis: string
+  result: string
+  sector_research: string
+  updated_at: string
+}
+
+export type StockDailyNoteUpsertInput = {
+  recorded_on: string
+  hypothesis: string
+  result: string
+  sector_research: string
+}
+
 export const api = {
   me: () => fetchJson<AuthUser>("/api/auth/me"),
   signOut: () => deleteJson("/api/auth/logout"),
@@ -369,4 +385,9 @@ export const api = {
   userPreferences: () => fetchJson<UserPreferences>("/api/preferences/import_prompt"),
   updateUserPreferences: (input: UserPreferencesInput) =>
     patchJson<UserPreferences>("/api/preferences/import_prompt", { user_preference: input }),
+
+  stockDailyNotes: () => fetchJson<StockDailyNote[]>("/api/stock_daily_notes"),
+  upsertStockDailyNote: (input: StockDailyNoteUpsertInput) =>
+    postJson<StockDailyNote>("/api/stock_daily_notes/upsert", { stock_daily_note: input }),
+  deleteStockDailyNote: (id: number) => deleteJson(`/api/stock_daily_notes/${id}`),
 }

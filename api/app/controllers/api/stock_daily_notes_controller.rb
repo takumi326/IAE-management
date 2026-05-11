@@ -5,6 +5,19 @@ module Api
       render json: { data: notes.map { |n| serialize(n) } }
     end
 
+    def destroy
+      note = StockDailyNote.find_by(id: params[:id], owner_key: preference_owner_key)
+      unless note
+        render json: {
+          error: { code: "not_found", message: "記録が見つかりません。" }
+        }, status: :not_found
+        return
+      end
+
+      note.destroy!
+      head :no_content
+    end
+
     def upsert
       recorded_on = parse_recorded_on(upsert_params[:recorded_on])
       unless recorded_on

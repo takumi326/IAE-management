@@ -62,7 +62,7 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :stock_daily_notes, only: [ :index ] do
+    resources :stock_daily_notes, only: [ :index, :destroy ] do
       collection do
         post :upsert
       end
