@@ -199,7 +199,7 @@ export function StockDailyPage() {
   })
   const [promptsLoadError, setPromptsLoadError] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState<"hypothesis" | "result" | "sector" | null>(null)
-  const [detailRow, setDetailRow] = useState<StockDailyRow | null>(null)
+  const [detailDate, setDetailDate] = useState<string | null>(null)
 
   const [createRecordOpen, setCreateRecordOpen] = useState(false)
   const [createDate, setCreateDate] = useState(today())
@@ -214,6 +214,11 @@ export function StockDailyPage() {
   const sortedRows = useMemo(
     () => [...rows].sort((a, b) => (a.date < b.date ? 1 : -1)),
     [rows],
+  )
+
+  const detailRow = useMemo(
+    () => (detailDate != null ? rows.find((r) => r.date === detailDate) ?? null : null),
+    [rows, detailDate],
   )
 
   useEffect(() => {
@@ -248,7 +253,9 @@ export function StockDailyPage() {
   }, [])
 
   useEffect(() => {
-    void loadNotes()
+    queueMicrotask(() => {
+      void loadNotes()
+    })
   }, [loadNotes])
 
   useEffect(() => {
@@ -261,22 +268,12 @@ export function StockDailyPage() {
     return () => document.removeEventListener("visibilitychange", onVis)
   }, [loadNotes, fieldEdit, createRecordOpen, promptModalOpen])
 
+  /** 詳細を開いたあとにその日の行が消えたときだけモーダルを閉じる（同期 setState は queueMicrotask で回避） */
   useEffect(() => {
-    if (!detailRow) return
-    const fresh = rows.find((r) => r.date === detailRow.date)
-    if (!fresh) {
-      setDetailRow(null)
-      return
-    }
-    if (
-      fresh.id !== detailRow.id ||
-      fresh.hypothesis !== detailRow.hypothesis ||
-      fresh.result !== detailRow.result ||
-      fresh.sectorResearch !== detailRow.sectorResearch
-    ) {
-      setDetailRow(fresh)
-    }
-  }, [rows, detailRow])
+    if (detailDate == null) return
+    if (rows.some((r) => r.date === detailDate)) return
+    queueMicrotask(() => setDetailDate(null))
+  }, [rows, detailDate])
 
   const openFieldEdit = (recordDate: string, field: EditField) => {
     setFieldSaveError(null)
@@ -441,7 +438,7 @@ export function StockDailyPage() {
         await api.deleteStockDailyNote(Number(prev.id))
       }
       setRows((curr) => curr.filter((r) => r.date !== recordDate))
-      setDetailRow((current) => (current?.date === recordDate ? null : current))
+      setDetailDate((d) => (d === recordDate ? null : d))
     } catch (err) {
       setNotesError(apiErrorMessage(err))
     }
@@ -670,7 +667,7 @@ export function StockDailyPage() {
                     <td className="border-b border-slate-100 px-2 py-3 text-center align-middle sm:px-3">
                       <button
                         type="button"
-                        onClick={() => setDetailRow(row)}
+                        onClick={() => setDetailDate(row.date)}
                         className="rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
                       >
                         詳細
@@ -740,7 +737,7 @@ export function StockDailyPage() {
       )}
 
       {detailRow && (
-        <Modal title={formatRecordDateJp(detailRow.date)} onClose={() => setDetailRow(null)} size="xl">
+        <Modal title={formatRecordDateJp(detailRow.date)} onClose={() => setDetailDate(null)} size="xl">
           <div className="grid max-h-[72vh] grid-cols-1 gap-3 overflow-y-auto pr-1 lg:grid-cols-3 lg:items-stretch">
             <DetailBlock title="仮説" body={detailRow.hypothesis} />
             <DetailBlock title="結果" body={detailRow.result} />
@@ -758,7 +755,7 @@ export function StockDailyPage() {
             </button>
             <button
               type="button"
-              onClick={() => setDetailRow(null)}
+              onClick={() => setDetailDate(null)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
             >
               閉じる
