@@ -608,6 +608,20 @@ export function ImportModal({ onClose, onImported }: Props) {
             から編集できます（サーバーに保存されます）。
           </p>
 
+          <div className="text-xs text-slate-600">
+            <p>
+              <span className="text-slate-500">Claude:</span>{" "}
+              <a
+                href="https://claude.ai/new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all font-medium text-indigo-700 underline-offset-2 hover:underline"
+              >
+                https://claude.ai/new
+              </a>
+            </p>
+          </div>
+
           {phase === "edit" && (
             <>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">

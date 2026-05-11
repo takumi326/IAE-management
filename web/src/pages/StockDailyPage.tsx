@@ -7,6 +7,8 @@ import { apiErrorMessage } from "../lib/errors.ts"
 import {
   applyStockPromptPlaceholders,
   formatRecordDateJp,
+  hypothesisForResultPromptFromRows,
+  normalizeCalendarDateKey,
   stockDailyPromptsFromPrefs,
 } from "../lib/stockDailyPrompts.ts"
 
@@ -411,7 +413,11 @@ export function StockDailyPage() {
           ? savedStockPrompts.result
           : savedStockPrompts.sector
     const recordedOn = today()
-    const hypothesisForDay = rows.find((r) => r.date === recordedOn)?.hypothesis ?? ""
+    const recordedKey = normalizeCalendarDateKey(recordedOn)
+    const hypothesisForDay =
+      key === "result"
+        ? hypothesisForResultPromptFromRows(rows, recordedOn)
+        : (rows.find((r) => normalizeCalendarDateKey(r.date) === recordedKey)?.hypothesis ?? "")
     const forClipboard = applyStockPromptPlaceholders(text, recordedOn, hypothesisForDay)
     try {
       await navigator.clipboard.writeText(forClipboard)
@@ -458,14 +464,16 @@ export function StockDailyPage() {
       {promptModalOpen && (
         <Modal title="プロンプト編集" onClose={closePromptModal} size="lg">
           <p className="mt-1 text-xs text-slate-500">
-            毎日の記録の仮説・結果・セクター調べ用の Claude プロンプトをそれぞれ保存します。空で保存するとその項目は未設定になります。コピー時に次のプレースホルダを置き換えます（大文字小文字無視・前後に空白可）。日付はコピー実行日の暦日、仮説プレースホルダはその日付の保存済み記録の仮説欄です。
+            毎日の記録の仮説・結果・セクター調べ用の Claude プロンプトをそれぞれ保存します。空で保存するとその項目は未設定になります。コピー時に次のプレースホルダを置き換えます（大文字小文字無視・前後に空白可）。日付はコピー実行日の暦日です。
           </p>
           <ul className="mt-2 mb-2 list-inside list-disc text-xs text-slate-600">
             <li>
               <code className="rounded bg-slate-100 px-1">{"{{date}}"}</code> … YYYY年MM月DD日
             </li>
             <li>
-              <code className="rounded bg-slate-100 px-1">{"{{hypothesis}}"}</code> … コピー実行日の記録にある仮説本文（未入力なら空）
+              <code className="rounded bg-slate-100 px-1">{"{{hypothesis}}"}</code> または{" "}
+              <code className="rounded bg-slate-100 px-1">{"{{仮説}}"}</code> …
+              仮説・セクター調べコピーはコピー実行日の記録の仮説。結果プロンプトコピーはその日の仮説が空のとき前日の仮説（それも空なら空）
             </li>
           </ul>
           <FormError message={promptOpenError} />
@@ -584,17 +592,43 @@ export function StockDailyPage() {
             {copiedKey === "sector" ? "セクター調べプロンプトコピー済" : "セクター調べプロンプトコピー"}
           </button>
         </div>
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700">
+          <p className="leading-relaxed">
+            <span className="font-medium text-slate-600">Claude</span>
+            <br />
+            <a
+              href="https://claude.ai/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all text-indigo-700 underline decoration-indigo-300 underline-offset-2"
+            >
+              https://claude.ai/new
+            </a>
+          </p>
+          <p className="mt-2 leading-relaxed">
+            <span className="font-medium text-slate-600">本日の市況</span>
+            <br />
+            <a
+              href="https://www.sc.mufg.jp/market/today_market/index.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all text-indigo-700 underline decoration-indigo-300 underline-offset-2"
+            >
+              https://www.sc.mufg.jp/market/today_market/index.html
+            </a>
+          </p>
+        </div>
         <FormError message={promptsLoadError} />
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <h3 className="text-lg font-semibold">保存済み記録</h3>
+        <div className="mb-3 flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h3 className="min-w-0 text-base font-semibold text-slate-800 sm:text-lg">保存済み記録</h3>
           <button
             type="button"
             onClick={openCreateRecordModal}
             disabled={notesLoading}
-            className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-3 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:h-auto sm:w-auto sm:py-1.5"
+            className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
           >
             作成
           </button>
@@ -732,7 +766,7 @@ export function StockDailyPage() {
       )}
 
       {detailRow && (
-        <Modal title={formatRecordDateJp(detailRow.date)} onClose={() => setDetailDate(null)} size="xl">
+        <Modal title={formatRecordDateJp(detailRow.date)} onClose={() => setDetailDate(null)} size="2xl">
           <div className="grid max-h-[72vh] grid-cols-1 gap-3 overflow-y-auto pr-1 lg:grid-cols-3 lg:items-stretch">
             <DetailBlock title="仮説" body={detailRow.hypothesis} />
             <DetailBlock title="結果" body={detailRow.result} />
@@ -814,3 +848,4 @@ function today(): string {
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
 }
+
