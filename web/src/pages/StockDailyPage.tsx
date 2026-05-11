@@ -2,8 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkBreaks from "remark-breaks"
 import { FormActions, FormError, Modal } from "../components/Modal.tsx"
-import { api, type StockDailyNote, type StockDailyNoteUpsertInput, type UserPreferences } from "../lib/api.ts"
+import { api, type StockDailyNote, type StockDailyNoteUpsertInput } from "../lib/api.ts"
 import { apiErrorMessage } from "../lib/errors.ts"
+import {
+  applyStockPromptPlaceholders,
+  formatRecordDateJp,
+  stockDailyPromptsFromPrefs,
+} from "../lib/stockDailyPrompts.ts"
 
 type StockDailyRow = {
   id: string
@@ -23,18 +28,6 @@ const FIELD_LABEL: Record<EditField, string> = {
   hypothesis: "仮説",
   result: "結果",
   sector: "セクター調べ",
-}
-
-function stockDailyPromptsFromPrefs(p: UserPreferences): {
-  hypothesis: string
-  result: string
-  sector: string
-} {
-  return {
-    hypothesis: (p.stock_daily_hypothesis_prompt ?? "").trimEnd(),
-    result: (p.stock_daily_result_prompt ?? "").trimEnd(),
-    sector: (p.stock_daily_sector_prompt ?? "").trimEnd(),
-  }
 }
 
 function upsertRowField(
@@ -561,47 +554,47 @@ export function StockDailyPage() {
       )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
           <button
             type="button"
             onClick={openPromptEditModal}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium text-slate-800 hover:bg-slate-50 sm:h-auto sm:w-auto sm:px-3 sm:py-1.5 sm:text-sm"
           >
             プロンプト編集
           </button>
           <button
             type="button"
             onClick={() => void copyStockPrompt("hypothesis")}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium text-slate-800 hover:bg-slate-50 sm:h-auto sm:w-auto sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            {copiedKey === "hypothesis" ? "仮説コピー済" : "仮説コピー"}
+            {copiedKey === "hypothesis" ? "仮説プロンプトコピー済" : "仮説プロンプトコピー"}
           </button>
           <button
             type="button"
             onClick={() => void copyStockPrompt("result")}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium text-slate-800 hover:bg-slate-50 sm:h-auto sm:w-auto sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            {copiedKey === "result" ? "結果コピー済" : "結果コピー"}
+            {copiedKey === "result" ? "結果プロンプトコピー済" : "結果プロンプトコピー"}
           </button>
           <button
             type="button"
             onClick={() => void copyStockPrompt("sector")}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium text-slate-800 hover:bg-slate-50 sm:h-auto sm:w-auto sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            {copiedKey === "sector" ? "セクター調べコピー済" : "セクター調べコピー"}
+            {copiedKey === "sector" ? "セクター調べプロンプトコピー済" : "セクター調べプロンプトコピー"}
           </button>
         </div>
         <FormError message={promptsLoadError} />
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold">保存済み記録</h3>
           <button
             type="button"
             onClick={openCreateRecordModal}
             disabled={notesLoading}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-3 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300 sm:h-auto sm:w-auto sm:py-1.5"
           >
             作成
           </button>
@@ -642,42 +635,44 @@ export function StockDailyPage() {
               <tbody className="divide-y divide-slate-100">
                 {sortedRows.map((row) => (
                   <tr key={row.id}>
-                    <td className="px-2 py-3 font-medium whitespace-nowrap text-slate-800 sm:px-3">{row.date}</td>
-                    <td className="w-28 min-w-28 border-b border-slate-100 px-1 py-3 align-middle sm:w-32 sm:min-w-32">
+                    <td className="align-top px-2 py-2.5 font-medium whitespace-nowrap text-slate-800 sm:align-middle sm:px-3 sm:py-3">
+                      {row.date}
+                    </td>
+                    <td className="w-28 min-w-28 border-b border-slate-100 px-1 py-2.5 align-top sm:w-32 sm:min-w-32 sm:py-3 sm:align-middle">
                       <SavedColumnCell
                         text={row.hypothesis}
                         label="仮説"
                         onEdit={() => openFieldEdit(row.date, "hypothesis")}
                       />
                     </td>
-                    <td className="w-28 min-w-28 border-b border-slate-100 px-1 py-3 align-middle sm:w-32 sm:min-w-32">
+                    <td className="w-28 min-w-28 border-b border-slate-100 px-1 py-2.5 align-top sm:w-32 sm:min-w-32 sm:py-3 sm:align-middle">
                       <SavedColumnCell
                         text={row.result}
                         label="結果"
                         onEdit={() => openFieldEdit(row.date, "result")}
                       />
                     </td>
-                    <td className="w-28 min-w-28 border-b border-slate-100 px-1 py-3 align-middle sm:w-32 sm:min-w-32">
+                    <td className="w-28 min-w-28 border-b border-slate-100 px-1 py-2.5 align-top sm:w-32 sm:min-w-32 sm:py-3 sm:align-middle">
                       <SavedColumnCell
                         text={row.sectorResearch}
                         label="セクター調べ"
                         onEdit={() => openFieldEdit(row.date, "sector")}
                       />
                     </td>
-                    <td className="border-b border-slate-100 px-2 py-3 text-center align-middle sm:px-3">
+                    <td className="border-b border-slate-100 px-2 py-2.5 text-center align-top sm:px-3 sm:py-3 sm:align-middle">
                       <button
                         type="button"
                         onClick={() => setDetailDate(row.date)}
-                        className="rounded-md border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                        className="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-indigo-200 bg-white px-2.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 sm:h-auto sm:py-1.5"
                       >
                         詳細
                       </button>
                     </td>
-                    <td className="border-b border-slate-100 px-2 py-3 text-center align-middle sm:px-3">
+                    <td className="border-b border-slate-100 px-2 py-2.5 text-center align-top sm:px-3 sm:py-3 sm:align-middle">
                       <button
                         type="button"
                         onClick={() => confirmDeleteRecord(row.date)}
-                        className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                        className="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-rose-200 bg-white px-2.5 text-xs font-medium text-rose-700 hover:bg-rose-50 sm:h-auto sm:py-1.5"
                       >
                         削除
                       </button>
@@ -746,15 +741,6 @@ export function StockDailyPage() {
           <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
-              onClick={() => {
-                confirmDeleteRecord(detailRow.date)
-              }}
-              className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
-            >
-              削除
-            </button>
-            <button
-              type="button"
               onClick={() => setDetailDate(null)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
             >
@@ -802,9 +788,9 @@ function SavedColumnCell({
 }) {
   const filled = text.trim().length > 0
   return (
-    <div className="flex flex-row flex-wrap items-center justify-center gap-2">
+    <div className="mx-auto flex max-w-full flex-nowrap items-center justify-center gap-1.5">
       <span
-        className={`shrink-0 text-base font-semibold tabular-nums ${filled ? "text-emerald-600" : "text-slate-400"}`}
+        className={`shrink-0 text-base font-semibold tabular-nums leading-none ${filled ? "text-emerald-600" : "text-slate-400"}`}
         title={filled ? `${label}あり` : `${label}なし`}
         aria-label={filled ? `${label}保存あり` : `${label}未入力`}
       >
@@ -813,7 +799,7 @@ function SavedColumnCell({
       <button
         type="button"
         onClick={onEdit}
-        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+        className="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-slate-300 px-2 text-xs text-slate-700 hover:bg-slate-50 sm:h-auto sm:py-1"
       >
         編集
       </button>
@@ -827,30 +813,4 @@ function today(): string {
   const m = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
-}
-
-/** `YYYY-MM-DD` → `YYYY年MM月DD日`（モーダルタイトル用） */
-function formatRecordDateJp(isoDate: string): string {
-  const parts = isoDate.split("-")
-  if (parts.length !== 3) return isoDate
-  const [y, mo, da] = parts
-  const yn = Number(y)
-  const mon = Number(mo)
-  const dayn = Number(da)
-  if (!Number.isFinite(yn) || !Number.isFinite(mon) || !Number.isFinite(dayn)) return isoDate
-  return `${yn}年${String(mon).padStart(2, "0")}月${String(dayn).padStart(2, "0")}日`
-}
-
-/** 株プロンプト用。コピー時に `recordedOnIso`（YYYY-MM-DD）と当日の仮説本文へ置換する */
-function applyStockPromptPlaceholders(
-  text: string,
-  recordedOnIso: string,
-  hypothesisBody: string,
-): string {
-  const jp = formatRecordDateJp(recordedOnIso)
-  return text
-    .replace(/\{\{\s*date_iso\s*\}\}/gi, recordedOnIso)
-    .replace(/\{\{\s*date\s*\}\}/gi, jp)
-    .replace(/\{\{\s*記録日\s*\}\}/g, jp)
-    .replace(/\{\{\s*hypothesis\s*\}\}/gi, () => hypothesisBody)
 }
