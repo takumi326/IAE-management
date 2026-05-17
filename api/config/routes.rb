@@ -67,6 +67,23 @@ Rails.application.routes.draw do
         post :upsert
       end
     end
+
+    resources :industries, only: [ :index ]
+
+    post "stocks/import", to: "stocks#import"
+    resources :stocks, only: [ :index, :show, :update ] do
+      member do
+        get :timeline
+      end
+      resources :stock_notes, only: [ :index, :create, :update, :destroy ]
+    end
+
+    resources :entries, only: [ :show, :create, :update, :destroy ]
+    resources :exits, controller: "stock_exits", only: [ :show, :create, :update, :destroy ]
+    resources :line_changes, only: [ :show, :create, :update, :destroy ]
+    resources :ai_scripts, only: [ :index, :show, :create, :update, :destroy ]
+
+    get "stock_trade_events", to: "stock_trade_events#index"
   end
 
   # Defines the root path route ("/")
