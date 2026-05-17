@@ -147,6 +147,37 @@ function deleteJson(path: string): Promise<void> {
   return fetchJson<void>(path, { method: "DELETE" })
 }
 
+async function postFormDataJson<T>(path: string, formData: FormData): Promise<T> {
+  const accessToken = import.meta.env.DEV ? null : await getSupabaseAccessToken()
+  const timeoutController = new AbortController()
+  const timeoutId = window.setTimeout(() => timeoutController.abort(), API_FETCH_TIMEOUT_MS)
+
+  const mergedSignal =
+    typeof AbortSignal !== "undefined" && typeof AbortSignal.any === "function"
+      ? AbortSignal.any([timeoutController.signal])
+      : timeoutController.signal
+
+  try {
+    const response = await fetch(withApiBase(path), {
+      method: "POST",
+      body: formData,
+      signal: mergedSignal,
+      headers: {
+        Accept: "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+    })
+
+    if (!response.ok) {
+      throw await parseError(response)
+    }
+    const body = (await response.json()) as Envelope<T>
+    return body.data
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
 export type CreateMajorCategoryInput = {
   kind: CategoryKind
   name: string
@@ -318,6 +349,147 @@ export type StockDailyNoteUpsertInput = {
   sector_research: string
 }
 
+export type IndustryRow = { id: number; name: string }
+
+export type StockListRow = {
+  id: number
+  code: string
+  name: string
+  industry_name: string
+  memo: string | null
+  holding_shares_real: number
+  tradingview_url: string
+}
+
+export type StockDetail = StockListRow & {
+  industry_id: number
+  updated_at: string
+}
+
+export type StockNote = {
+  id: number
+  stock_id: number
+  noted_on: string
+  note: string
+  created_at: string
+  updated_at: string
+}
+
+export type AiScriptRow = {
+  id: number
+  version_name: string
+  description: string | null
+  scope: string | null
+  started_at: string
+  ended_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type TradeType = "real" | "virtual"
+export type JudgmentType = "human" | "ai"
+
+export type StockEntry = {
+  id: number
+  stock_id: number
+  trade_type: TradeType
+  judgment_type: JudgmentType
+  ai_script_id: number | null
+  expected_price: string | null
+  actual_price: string | null
+  shares: number | null
+  traded_at: string | null
+  entry_reason: string
+  scenario: string | null
+  memo: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type StockExitRow = {
+  id: number
+  stock_id: number
+  trade_type: TradeType
+  judgment_type: JudgmentType
+  ai_script_id: number | null
+  expected_price: string | null
+  actual_price: string | null
+  shares: number | null
+  traded_at: string | null
+  exit_reason: string
+  review_result: "as_planned" | "missed" | "partial" | null
+  review_missed: string | null
+  review_learning: string | null
+  memo: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type LineChangeRow = {
+  id: number
+  stock_id: number
+  trade_type: TradeType
+  judgment_type: JudgmentType
+  ai_script_id: number | null
+  changed_on: string
+  stop_loss: string | null
+  target_price: string | null
+  reason: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type StockTradeEventRow = {
+  kind: "entry" | "exit" | "line_change"
+  id: number
+  sort_on: string
+  stock: { id: number; code: string; name: string }
+  stock_id?: number
+  trade_type?: TradeType
+  judgment_type?: JudgmentType
+  ai_script_id?: number | null
+  expected_price?: string | null
+  actual_price?: string | null
+  shares?: number | null
+  traded_at?: string | null
+  entry_reason?: string
+  scenario?: string | null
+  exit_reason?: string
+  review_result?: "as_planned" | "missed" | "partial" | null
+  review_missed?: string | null
+  review_learning?: string | null
+  changed_on?: string
+  stop_loss?: string | null
+  target_price?: string | null
+  reason?: string | null
+  memo?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export type StockTradeEventsResult = {
+  rows: StockTradeEventRow[]
+  total_realized_pl: string
+}
+
+export type StockCsvImportResult = {
+  created_industries: number
+  created_stocks: number
+  updated_stocks: number
+  skipped_rows: number
+}
+
+export type StockTradeEventsQuery = {
+  trade_type: TradeType
+  judgment_type: JudgmentType
+  event_kind: "all" | "entry" | "exit"
+  settled?: "all" | "yes" | "no"
+  q?: string
+  from?: string
+  to?: string
+  ai_script_id?: number | null
+}
+
 export const api = {
   me: () => fetchJson<AuthUser>("/api/auth/me"),
   signOut: () => deleteJson("/api/auth/logout"),
@@ -390,4 +562,87 @@ export const api = {
   upsertStockDailyNote: (input: StockDailyNoteUpsertInput) =>
     postJson<StockDailyNote>("/api/stock_daily_notes/upsert", { stock_daily_note: input }),
   deleteStockDailyNote: (id: number) => deleteJson(`/api/stock_daily_notes/${id}`),
+
+  industries: () => fetchJson<IndustryRow[]>("/api/industries"),
+  stocks: (opts?: { scope?: "all" | "holdings"; q?: string }) => {
+    const sp = new URLSearchParams()
+    if (opts?.scope === "all") sp.set("scope", "all")
+    if (opts?.q) sp.set("q", opts.q)
+    const q = sp.toString()
+    return fetchJson<StockListRow[]>(`/api/stocks${q ? `?${q}` : ""}`)
+  },
+  importStocksCsv: (file: File) => {
+    const fd = new FormData()
+    fd.append("file", file)
+    return postFormDataJson<StockCsvImportResult>("/api/stocks/import", fd)
+  },
+  stock: (id: number) => fetchJson<StockDetail>(`/api/stocks/${id}`),
+  updateStock: (id: number, input: { memo?: string | null }) =>
+    patchJson<StockDetail>(`/api/stocks/${id}`, { stock: input }),
+  stockTimeline: (id: number, q: { trade_type: TradeType; judgment_type: JudgmentType; ai_script_id?: number | null }) => {
+    const sp = new URLSearchParams()
+    sp.set("trade_type", q.trade_type)
+    sp.set("judgment_type", q.judgment_type)
+    if (q.ai_script_id != null && q.ai_script_id !== undefined) sp.set("ai_script_id", String(q.ai_script_id))
+    return fetchJson<{ rows: StockTradeEventRow[] }>(`/api/stocks/${id}/timeline?${sp}`)
+  },
+  stockNotes: (stockId: number) => fetchJson<StockNote[]>(`/api/stocks/${stockId}/stock_notes`),
+  createStockNote: (stockId: number, input: { noted_on: string; note: string }) =>
+    postJson<StockNote>(`/api/stocks/${stockId}/stock_notes`, { stock_note: input }),
+  updateStockNote: (stockId: number, id: number, input: { noted_on: string; note: string }) =>
+    patchJson<StockNote>(`/api/stocks/${stockId}/stock_notes/${id}`, { stock_note: input }),
+  deleteStockNote: (stockId: number, id: number) => deleteJson(`/api/stocks/${stockId}/stock_notes/${id}`),
+
+  aiScripts: () => fetchJson<AiScriptRow[]>("/api/ai_scripts"),
+  aiScript: (id: number) => fetchJson<AiScriptRow>(`/api/ai_scripts/${id}`),
+  createAiScript: (input: {
+    version_name: string
+    description?: string | null
+    scope?: string | null
+    started_at: string
+    ended_at?: string | null
+  }) => postJson<AiScriptRow>("/api/ai_scripts", { ai_script: input }),
+  updateAiScript: (
+    id: number,
+    input: Partial<{
+      version_name: string
+      description: string | null
+      scope: string | null
+      started_at: string
+      ended_at: string | null
+    }>,
+  ) => patchJson<AiScriptRow>(`/api/ai_scripts/${id}`, { ai_script: input }),
+  deleteAiScript: (id: number) => deleteJson(`/api/ai_scripts/${id}`),
+
+  stockTradeEvents: (query: StockTradeEventsQuery) => {
+    const sp = new URLSearchParams()
+    sp.set("trade_type", query.trade_type)
+    sp.set("judgment_type", query.judgment_type)
+    sp.set("event_kind", query.event_kind)
+    if (query.settled) sp.set("settled", query.settled)
+    if (query.q) sp.set("q", query.q)
+    if (query.from) sp.set("from", query.from)
+    if (query.to) sp.set("to", query.to)
+    if (query.ai_script_id != null && query.ai_script_id !== undefined) {
+      sp.set("ai_script_id", String(query.ai_script_id))
+    }
+    return fetchJson<StockTradeEventsResult>(`/api/stock_trade_events?${sp}`)
+  },
+
+  entry: (id: number) => fetchJson<StockEntry>(`/api/entries/${id}`),
+  createEntry: (input: Record<string, unknown>) => postJson<StockEntry>("/api/entries", { entry: input }),
+  updateEntry: (id: number, input: Record<string, unknown>) => patchJson<StockEntry>(`/api/entries/${id}`, { entry: input }),
+  deleteEntry: (id: number) => deleteJson(`/api/entries/${id}`),
+
+  stockExit: (id: number) => fetchJson<StockExitRow>(`/api/exits/${id}`),
+  createStockExit: (input: Record<string, unknown>) => postJson<StockExitRow>("/api/exits", { exit: input }),
+  updateStockExit: (id: number, input: Record<string, unknown>) =>
+    patchJson<StockExitRow>(`/api/exits/${id}`, { exit: input }),
+  deleteStockExit: (id: number) => deleteJson(`/api/exits/${id}`),
+
+  lineChange: (id: number) => fetchJson<LineChangeRow>(`/api/line_changes/${id}`),
+  createLineChange: (input: Record<string, unknown>) => postJson<LineChangeRow>("/api/line_changes", { line_change: input }),
+  updateLineChange: (id: number, input: Record<string, unknown>) =>
+    patchJson<LineChangeRow>(`/api/line_changes/${id}`, { line_change: input }),
+  deleteLineChange: (id: number) => deleteJson(`/api/line_changes/${id}`),
 }

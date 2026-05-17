@@ -8,6 +8,10 @@ import { FinanceSummaryPage } from "./pages/FinanceSummaryPage.tsx"
 import { MastersPage } from "./pages/MastersPage.tsx"
 import { SettingsPage } from "./pages/SettingsPage.tsx"
 import { StockDailyPage } from "./pages/StockDailyPage.tsx"
+import { StocksListPage } from "./pages/StocksListPage.tsx"
+import { StockDetailPage } from "./pages/StockDetailPage.tsx"
+import { StockTradesPage } from "./pages/StockTradesPage.tsx"
+import { AiScriptsPage } from "./pages/AiScriptsPage.tsx"
 
 type SidebarNavItem = { to: string; label: string }
 
@@ -25,7 +29,14 @@ const sidebarNavGroups: { label: string; items: SidebarNavItem[] }[] = [
   },
   {
     label: "株管理",
-    items: [{ to: "/stocks/daily", label: "毎日の記録" }],
+    items: [
+      { to: "/stocks/daily", label: "毎日の記録" },
+      { to: "/stocks", label: "株一覧" },
+      { to: "/stocks/trades/real", label: "実取引一覧" },
+      { to: "/stocks/trades/virtual-human", label: "仮想取引（人間）" },
+      { to: "/stocks/trades/virtual-ai", label: "仮想取引（AI）" },
+      { to: "/stocks/ai-scripts", label: "AIスクリプト" },
+    ],
   },
 ]
 const IS_DEV = import.meta.env.DEV
@@ -124,6 +135,12 @@ export default function App() {
             <Route path="/finance/masters" element={<MastersPage />} />
             <Route path="/finance/settings" element={<SettingsPage />} />
             <Route path="/stocks/daily" element={<StockDailyPage />} />
+            <Route path="/stocks/trades/real" element={<StockTradesPage mode="real" />} />
+            <Route path="/stocks/trades/virtual-human" element={<StockTradesPage mode="virtual-human" />} />
+            <Route path="/stocks/trades/virtual-ai" element={<StockTradesPage mode="virtual-ai" />} />
+            <Route path="/stocks/ai-scripts" element={<AiScriptsPage />} />
+            <Route path="/stocks/:id" element={<StockDetailPage />} />
+            <Route path="/stocks" element={<StocksListPage />} />
             <Route path="/todo" element={<Navigate to="/" replace />} />
           </Routes>
         </section>
@@ -190,7 +207,7 @@ function SidebarNavLink({ item, onNavigate }: { item: SidebarNavItem; onNavigate
   return (
     <NavLink
       to={item.to}
-      end={item.to === "/" || item.to === "/finance"}
+      end={item.to === "/" || item.to === "/finance" || item.to === "/stocks"}
       onClick={onNavigate}
       className={({ isActive }) =>
         `block rounded-lg px-3 py-2 text-sm ${
